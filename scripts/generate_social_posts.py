@@ -224,9 +224,9 @@ def parse_args() -> argparse.Namespace:
         default=Path("configs/social_eval_briefs.jsonl"),
     )
     parser.add_argument("--output-file", type=Path, default=Path("outputs/generated_posts.jsonl"))
-    parser.add_argument("--max-new-tokens", type=int, default=160)
-    parser.add_argument("--temperature", type=float, default=0.7)
-    parser.add_argument("--top-p", type=float, default=0.9)
+    parser.add_argument("--max-new-tokens", type=int, default=220)
+    parser.add_argument("--temperature", type=float, default=0.55)
+    parser.add_argument("--top-p", type=float, default=0.85)
     parser.add_argument("--repetition-penalty", type=float, default=1.12)
     parser.add_argument("--no-repeat-ngram-size", type=int, default=5)
     parser.add_argument("--use-chat-template", action="store_true")
