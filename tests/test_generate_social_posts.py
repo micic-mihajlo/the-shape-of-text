@@ -19,6 +19,7 @@ class FakeGemmaTokenizer:
             "<|image|>": [258881],
             "<tool_response|>": [51],
             "<|tool_response>": [500, 501],
+            "_": [236779],
         }.get(token, [])
 
 
@@ -42,7 +43,7 @@ def test_generation_defaults_are_bounded_for_social_posts(monkeypatch):
     args = parse_args()
 
     assert args.max_new_tokens == 220
-    assert args.temperature == 0.55
+    assert args.temperature == 0.0
     assert args.top_p == 0.85
     assert args.repetition_penalty == 1.12
     assert args.no_repeat_ngram_size == 5
@@ -58,3 +59,4 @@ def test_generation_allows_gemma_turn_token_as_stop_token():
     assert [106] not in bad_words
     assert [258881] in bad_words
     assert [51] in bad_words
+    assert [236779] in bad_words

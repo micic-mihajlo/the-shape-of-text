@@ -123,6 +123,7 @@ def control_token_bad_words(
         "<image|>",
         "<|audio>",
         "<audio|>",
+        "_",
     }
     for name in (
         "image_token",
@@ -225,7 +226,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-file", type=Path, default=Path("outputs/generated_posts.jsonl"))
     parser.add_argument("--max-new-tokens", type=int, default=220)
-    parser.add_argument("--temperature", type=float, default=0.55)
+    parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top-p", type=float, default=0.85)
     parser.add_argument("--repetition-penalty", type=float, default=1.12)
     parser.add_argument("--no-repeat-ngram-size", type=int, default=5)

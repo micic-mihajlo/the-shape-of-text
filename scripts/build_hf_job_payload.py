@@ -11,7 +11,7 @@ DEFAULT_IMAGE = "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
 HF_TOKEN_PLACEHOLDER = "${HF_TOKEN}"
 GENERATION_EVAL_ARGS = (
     "  --max-new-tokens 220 \\\n"
-    "  --temperature 0.55 \\\n"
+    "  --temperature 0.0 \\\n"
     "  --top-p 0.85 \\\n"
     "  --repetition-penalty 1.12 \\\n"
     "  --no-repeat-ngram-size 5 \\\n"
