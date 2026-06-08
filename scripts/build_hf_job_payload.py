@@ -97,9 +97,9 @@ def training_args(args: argparse.Namespace) -> list[str]:
 def clone_and_install_shell(args: argparse.Namespace) -> str:
     return f"""
 set -euo pipefail
-if ! command -v git >/dev/null 2>&1; then
+if ! command -v git >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1; then
   apt-get update
-  apt-get install -y git
+  apt-get install -y git build-essential
 fi
 git clone {shlex.quote(args.repo_url)} /workspace/the-shape-of-text
 cd /workspace/the-shape-of-text
@@ -129,6 +129,7 @@ def build_preflight_command(args: argparse.Namespace) -> list[str]:
     )
     shell = f"""
 {clone_and_install_shell(args)}
+gcc --version >/tmp/gcc_version.txt
 python -m shape_of_text.train --help >/tmp/train_help.txt
 python scripts/validate_preflight.py \\
   --train-file {shlex.quote(str(args.train_file))} \\

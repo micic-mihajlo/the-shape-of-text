@@ -76,9 +76,11 @@ python scripts/build_hf_job_payload.py \
 ```
 
 The preflight payload uses a CPU flavor by default. It clones the committed SHA,
-installs the package, checks the module entrypoint, validates example data,
-validates a generated smoke payload, and runs the test suite. It does not need
-`HF_TOKEN` because it does not download Gemma or push an adapter.
+installs system packages needed by the PyTorch runtime image (`git` and
+`build-essential`), installs the package, checks `gcc`, checks the module
+entrypoint, validates example data, validates a generated smoke payload, and
+runs the test suite. It does not need `HF_TOKEN` because it does not download
+Gemma or push an adapter.
 
 For the GPU Gemma smoke job, use:
 
@@ -107,7 +109,7 @@ python scripts/build_hf_job_payload.py \
 The generated job command will:
 
 1. Clone this repository at a committed SHA.
-2. Install `git` if the CUDA image does not include it.
+2. Install `git` and `build-essential` if the CUDA image does not include them.
 3. Install `pip install -e ".[dev]"`.
 4. Run the `accelerate launch` command above with the smoke settings.
 5. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights and push

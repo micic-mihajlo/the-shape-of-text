@@ -24,6 +24,8 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert payload["args"]["image"] == "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
     assert payload["args"]["flavor"] == "l40sx1"
     assert "command -v git" in command
+    assert "command -v gcc" in command
+    assert "build-essential" in command
     assert command.index("command -v git") < command.index("git clone")
     assert "--max-steps 10" in command
     assert "--max-length 512" in command
@@ -88,6 +90,7 @@ def test_preflight_payload_uses_cpu_and_skips_hub_secret(monkeypatch):
     assert payload["args"]["flavor"] == "cpu-upgrade"
     assert payload["args"]["timeout"] == "45m"
     assert "secrets" not in payload["args"]
+    assert "gcc --version" in command
     assert "python -m shape_of_text.train --help" in command
     assert "scripts/validate_preflight.py" in command
     assert "scripts/build_hf_job_payload.py" in command
