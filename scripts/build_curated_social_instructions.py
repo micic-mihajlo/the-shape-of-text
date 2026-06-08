@@ -135,46 +135,55 @@ ARCHETYPES = [
     "x_short",
 ]
 
+DIRECT_POST_INSTRUCTION = (
+    " Return only one finished post. Do not give options, labels, headings, "
+    "explanations, or analysis."
+)
+
+
+def direct_prompt(text: str) -> str:
+    return text + DIRECT_POST_INSTRUCTION
+
 
 def prompt_for(topic: dict[str, str], archetype: str, platform: str) -> str:
     audience = topic["audience"]
     base = f"Write a {platform} post about {topic['topic']}."
     if archetype == "launch":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Make it concrete, modest, and useful. "
             "Mention what changed and end with a grounded feedback ask."
         )
     if archetype == "changelog":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Write it like a plain product changelog, "
             "not a campaign. Include the user-visible improvement."
         )
     if archetype == "lesson":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Frame it as a lesson learned from shipping. "
             "Keep it concise and specific."
         )
     if archetype == "field_report":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Write a field report with what worked, "
             "what changed, and what happens next."
         )
     if archetype == "contrarian":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Start from a restrained contrarian take "
             "and make the practical point clear."
         )
     if archetype == "ask":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Ask for useful feedback without sounding "
             "like a marketing campaign."
         )
     if archetype == "technical_plain":
-        return (
+        return direct_prompt(
             f"{base} Audience: {audience}. Explain the technical value in plain "
             "language without equations or jargon."
         )
-    return (
+    return direct_prompt(
         f"{base} Audience: {audience}. Make it short enough for X, with one concrete "
         "detail and no hype."
     )

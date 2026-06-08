@@ -74,6 +74,10 @@ TEMPLATE_PATTERNS = (
     r"\[explain\b",
     r"\bexisting code that causes issues\b",
     r"\bi recommend implementing\b",
+    r"\bhere are (three|[0-9]+) options\b",
+    r"\boption\s*[0-9]+\s*:",
+    r"\bbest for\b",
+    r"\bdepending on the (specific )?(tone|vibe)\b",
     r"\bthe post should be written in english\b",
     r"^\s*prompt\s*:",
     r"^\s*platform\s*:",
@@ -197,6 +201,19 @@ def _character_noise(completion: str) -> dict[str, float]:
     }
 
 
+def repeated_phrase(completion: str, *, phrase_size: int = 5, max_count: int = 2) -> str | None:
+    words = ascii_words(completion)
+    if len(words) < phrase_size * (max_count + 1):
+        return None
+    counts: dict[tuple[str, ...], int] = {}
+    for index in range(len(words) - phrase_size + 1):
+        phrase = tuple(words[index : index + phrase_size])
+        counts[phrase] = counts.get(phrase, 0) + 1
+        if counts[phrase] > max_count:
+            return " ".join(phrase)
+    return None
+
+
 def evaluate_completion_quality(
     record: dict[str, Any],
     *,
@@ -265,6 +282,11 @@ def evaluate_completion_quality(
                 "no_sentence_punctuation",
                 "long completion has no sentence-ending punctuation",
             )
+        )
+    phrase = repeated_phrase(completion)
+    if phrase is not None:
+        issues.append(
+            QualityIssue("repeated_phrase", f"completion repeats phrase: {phrase!r}")
         )
 
     special_matches = _matches_any(SPECIAL_TOKEN_PATTERNS, completion)

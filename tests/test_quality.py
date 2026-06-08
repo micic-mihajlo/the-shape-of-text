@@ -101,6 +101,38 @@ def test_quality_accepts_small_amount_of_social_punctuation():
     assert result.ok
 
 
+def test_quality_rejects_option_menu_output():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one LinkedIn post about a product update.",
+            "completion": (
+                "Here are three options depending on the tone you want.\n\n"
+                "### Option 1: Best for engagement\n"
+                "We shipped a smaller settings flow today. It removes a repeated step "
+                "and gives teams one less thing to think about before they publish."
+            ),
+        }
+    )
+
+    assert "template_or_code" in {issue.code for issue in result.issues}
+
+
+def test_quality_rejects_repeated_phrase_loop():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one LinkedIn post about a product update.",
+            "completion": (
+                "We cleaned up the first-run checklist today. The setup path is shorter, "
+                "the defaults are clearer, and new teams get to the useful moment faster. "
+                "That is a better default state. That is a better default state. "
+                "That is a better default state."
+            ),
+        }
+    )
+
+    assert "repeated_phrase" in {issue.code for issue in result.issues}
+
+
 def test_quality_report_summarizes_failures():
     report = quality_report(
         [
