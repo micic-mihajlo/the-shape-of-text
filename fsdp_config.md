@@ -1,7 +1,9 @@
 # FSDP Configuration for Gemma 12B QLoRA Style Alignment
 
-This repository uses QLoRA for trainable memory efficiency and FSDP for sharding
-the 12B-class backbone across multiple GPUs. The concrete launcher files are:
+This repository uses QLoRA for trainable memory efficiency and FSDP-compatible
+wrapping for the 12B-class backbone. The committed Accelerate config is locked
+to one process for low-cost `l40sx1` smoke jobs; raise `num_processes` only when
+the selected host actually has multiple GPUs. The concrete launcher files are:
 
 - `configs/accelerate_fsdp_qlora_gemma4_12b.yaml`
 - `configs/trainer_fsdp_qlora_gemma4_12b.json`
@@ -16,6 +18,7 @@ the 12B-class backbone across multiple GPUs. The concrete launcher files are:
 - FSDP auto-wrap policy: transformer-layer wrapping
 - FSDP state dict: sharded state dict
 - PEFT compatibility: `use_orig_params=true`
+- Default process count: `num_processes=1` for one-GPU smoke validation
 - Gradient checkpointing: enabled
 - Forward prefetch: disabled
 - Backward prefetch: `BACKWARD_PRE`
@@ -43,7 +46,9 @@ For a new host, use this sequence:
 2. Increase to `--max-length 1024`.
 3. Increase LoRA rank to 16.
 4. Increase MMD/JMQ sample sizes only after the base run is stable.
-5. Add a frozen target model only if the host has enough spare memory, or use
+5. For multi-GPU hosts, raise `num_processes` in the Accelerate config to match
+   the GPU count before relying on FSDP sharding behavior.
+6. Add a frozen target model only if the host has enough spare memory, or use
    cached target logits instead.
 
 ## OOM Triage

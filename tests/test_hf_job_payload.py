@@ -22,6 +22,8 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     command = "\n".join(payload["args"]["command"])
     assert payload["operation"] == "run"
     assert payload["args"]["flavor"] == "l40sx1"
+    assert "command -v git" in command
+    assert command.index("command -v git") < command.index("git clone")
     assert "--max-steps 10" in command
     assert "--max-length 512" in command
     assert "--push-to-hub" in command

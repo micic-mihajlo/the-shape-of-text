@@ -44,9 +44,10 @@ accelerate launch \
 ## HF Jobs Shape
 
 For the first paid run, use a short detached smoke job on `l40sx1` or
-`a10g-large`, with `--max-steps 10` and `--max-length 512`. Only increase length
-and steps after the smoke logs show a clean train step, eval step, and adapter
-save.
+`a10g-large`, with `--max-steps 10` and `--max-length 512`. The committed
+Accelerate config uses `num_processes: 1` so the default payload matches those
+one-GPU flavors. Only increase GPU count, length, and steps after the smoke logs
+show a clean train step, eval step, and adapter save.
 
 Before launching, run preflight locally:
 
@@ -84,14 +85,15 @@ python scripts/build_hf_job_payload.py \
 The generated job command will:
 
 1. Clone this repository at a committed SHA.
-2. Install `pip install -e ".[dev]"`.
-3. Run the `accelerate launch` command above with the smoke settings.
-4. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights and push
+2. Install `git` if the CUDA image does not include it.
+3. Install `pip install -e ".[dev]"`.
+4. Run the `accelerate launch` command above with the smoke settings.
+5. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights and push
    the adapter.
-5. Generate held-out posts from `configs/social_eval_briefs.jsonl`.
-6. Run deterministic style metrics against the validation completions.
-7. Compare base-model generations against adapter generations.
-8. Write a model-card draft and `eval_summary.json` into
+6. Generate held-out posts from `configs/social_eval_briefs.jsonl`.
+7. Run deterministic style metrics against the validation completions.
+8. Compare base-model generations against adapter generations.
+9. Write a model-card draft and `eval_summary.json` into
    `/workspace/adapter_report`.
 
 Do not start with a long run. The first paid run is a systems test, not a model

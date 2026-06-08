@@ -115,6 +115,10 @@ decoder layer used by the current Gemma 4 Transformers implementation. If the
 selected checkpoint exposes a different decoder class, update both FSDP config
 files before launching.
 
+The committed Accelerate config uses `num_processes: 1` so the default HF Jobs
+smoke payload matches one-GPU flavors such as `l40sx1`. For multi-GPU FSDP
+sharding, raise `num_processes` to the GPU count before launching.
+
 ## Hardware Notes
 
 The memory-critical switches are already set for the intended QLoRA path:

@@ -82,6 +82,10 @@ def build_command(args: argparse.Namespace) -> list[str]:
     train_command = shell_join(training_args(args))
     shell = f"""
 set -euo pipefail
+if ! command -v git >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y git
+fi
 git clone {shlex.quote(args.repo_url)} {clone_target}
 cd {clone_target}
 git checkout {shlex.quote(args.git_ref)}
