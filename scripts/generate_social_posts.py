@@ -124,6 +124,8 @@ def control_token_bad_words(
         "<|audio>",
         "<audio|>",
         "_",
+        "[",
+        "]",
     }
     for name in (
         "image_token",
