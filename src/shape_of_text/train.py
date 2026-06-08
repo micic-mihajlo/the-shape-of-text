@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+from collections.abc import Mapping
 from itertools import chain
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
@@ -137,8 +139,11 @@ class CausalLMCollator:
     def __call__(self, examples: list[dict[str, Any]]) -> dict[str, torch.Tensor]:
         input_features = [
             {
-                "input_ids": example["input_ids"],
-                "attention_mask": example.get("attention_mask", [1] * len(example["input_ids"])),
+                "input_ids": _ensure_token_id_sequence(example["input_ids"], "input_ids"),
+                "attention_mask": _ensure_token_id_sequence(
+                    example.get("attention_mask", [1] * len(example["input_ids"])),
+                    "attention_mask",
+                ),
             }
             for example in examples
         ]
@@ -147,7 +152,7 @@ class CausalLMCollator:
         max_length = batch["input_ids"].size(1)
         labels = []
         for example in examples:
-            label_values = list(example["labels"])
+            label_values = list(_ensure_token_id_sequence(example["labels"], "labels"))
             pad_length = max_length - len(label_values)
             label_padding = [self.label_pad_token_id] * pad_length
             if self.tokenizer.padding_side == "left":
@@ -269,6 +274,45 @@ def load_text_dataset(tokenizer: AutoTokenizer, args: argparse.Namespace):
     return tokenized.map(group_texts, batched=True)
 
 
+def _ensure_token_id_sequence(values: Any, field_name: str) -> Any:
+    if isinstance(values, str):
+        raise ValueError(f"{field_name} must be token ids, got a string: {values!r}")
+    if isinstance(values, list) and any(not isinstance(value, Integral) for value in values):
+        bad_type = type(next(value for value in values if not isinstance(value, Integral))).__name__
+        raise ValueError(f"{field_name} must contain integer token ids, got {bad_type}")
+    return values
+
+
+def _coerce_chat_template_ids(tokenizer: AutoTokenizer, value: Any) -> list[int]:
+    for _ in range(4):
+        if isinstance(value, str):
+            value = tokenizer(value, add_special_tokens=False)
+            continue
+        if isinstance(value, Mapping):
+            value = value["input_ids"]
+            continue
+        break
+
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    elif hasattr(value, "ids"):
+        value = value.ids
+
+    if value and isinstance(value[0], list):
+        if len(value) != 1:
+            raise ValueError("chat template tokenization returned multiple sequences")
+        value = value[0]
+
+    tokens = list(value)
+    if any(not isinstance(token_id, Integral) for token_id in tokens):
+        bad_value = next(token_id for token_id in tokens if not isinstance(token_id, Integral))
+        raise ValueError(
+            "chat template tokenization must return integer token ids, "
+            f"got {type(bad_value).__name__}: {bad_value!r}"
+        )
+    return [int(token_id) for token_id in tokens]
+
+
 def _chat_template_ids(
     tokenizer: AutoTokenizer,
     messages: list[dict[str, str]],
@@ -280,17 +324,7 @@ def _chat_template_ids(
         tokenize=True,
         add_generation_prompt=add_generation_prompt,
     )
-    if isinstance(ids, dict):
-        ids = ids["input_ids"]
-    if isinstance(ids, str):
-        ids = tokenizer(ids, add_special_tokens=False)["input_ids"]
-    if hasattr(ids, "tolist"):
-        ids = ids.tolist()
-    if ids and isinstance(ids[0], list):
-        if len(ids) != 1:
-            raise ValueError("chat template tokenization returned multiple sequences")
-        ids = ids[0]
-    return list(ids)
+    return _coerce_chat_template_ids(tokenizer, ids)
 
 
 def _common_prefix_length(left: list[int], right: list[int]) -> int:

@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 pytest.importorskip("datasets")
 pytest.importorskip("peft")
-pytest.importorskip("transformers")
+transformers = pytest.importorskip("transformers")
 
 from shape_of_text.losses import CausalLMAlignmentLoss
 from shape_of_text.train import (
@@ -77,6 +77,18 @@ class DummyDictStringChatTokenizer(DummyStringChatTokenizer):
         }
 
 
+class DummyBatchEncodingChatTokenizer(DummyChatTokenizer):
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False):
+        input_ids = super().apply_chat_template(
+            messages,
+            tokenize=tokenize,
+            add_generation_prompt=add_generation_prompt,
+        )
+        return transformers.BatchEncoding(
+            {"input_ids": input_ids, "attention_mask": [1] * len(input_ids)}
+        )
+
+
 def test_alignment_weight_warmup_schedule():
     trainer = object.__new__(AlignmentTrainer)
     trainer.state = SimpleNamespace(global_step=4)
@@ -130,6 +142,18 @@ def test_tokenize_chat_instruction_handles_dict_string_chat_template_return():
     assert any(label != -100 for label in labels)
 
 
+def test_tokenize_chat_instruction_handles_batch_encoding_return():
+    input_ids, _, labels = tokenize_chat_instruction(
+        DummyBatchEncodingChatTokenizer(),
+        prompt="Write a post.",
+        completion="We shipped the small fix today.",
+        max_length=512,
+    )
+
+    assert all(isinstance(token_id, int) for token_id in input_ids)
+    assert any(label != -100 for label in labels)
+
+
 def test_causal_lm_collator_pads_labels_on_right():
     collator = CausalLMCollator(DummyTokenizer("right"))
     batch = collator(
@@ -150,6 +174,13 @@ def test_causal_lm_collator_pads_labels_on_left():
         ]
     )
     assert batch["labels"].tolist() == [[-100, 2], [-100, 3]]
+
+
+def test_causal_lm_collator_rejects_string_token_ids():
+    collator = CausalLMCollator(DummyTokenizer("right"))
+
+    with pytest.raises(ValueError, match="input_ids must be token ids"):
+        collator([{"input_ids": "input_ids", "attention_mask": [1], "labels": [1]}])
 
 
 def test_trainer_gradient_checkpointing_yields_to_fsdp_activation_checkpointing():
