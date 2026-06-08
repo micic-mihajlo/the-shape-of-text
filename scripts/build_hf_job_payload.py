@@ -260,12 +260,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--train-file",
         type=Path,
-        default=Path("data/social-instructions/train.jsonl"),
+        default=Path("examples/social_instructions/train.jsonl"),
     )
     parser.add_argument(
         "--eval-file",
         type=Path,
-        default=Path("data/social-instructions/validation.jsonl"),
+        default=Path("examples/social_instructions/validation.jsonl"),
     )
     parser.add_argument("--max-steps", type=int, default=1000)
     parser.add_argument("--max-length", type=int, default=1024)

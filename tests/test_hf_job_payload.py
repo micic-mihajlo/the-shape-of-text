@@ -73,6 +73,23 @@ def test_full_payload_uses_requested_steps(monkeypatch):
     assert "--save-steps 123" in command
 
 
+def test_payload_defaults_to_committed_example_data(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "build_hf_job_payload.py",
+            "--git-ref",
+            "abc123",
+            "--hub-model-id",
+            "micic-mihajlo/adapter",
+        ],
+    )
+    payload = build_payload(parse_args())
+    command = "\n".join(payload["args"]["command"])
+    assert "--train-file examples/social_instructions/train.jsonl" in command
+    assert "--eval-file examples/social_instructions/validation.jsonl" in command
+
+
 def test_preflight_payload_uses_cpu_and_skips_hub_secret(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",

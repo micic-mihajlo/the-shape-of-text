@@ -271,6 +271,12 @@ python scripts/build_hf_job_payload.py \
   --detach
 ```
 
+By default the generated HF Jobs payload uses the committed fake examples under
+`examples/social_instructions/` so a clean remote clone can run. For a real
+quality run, pass `--train-file data/social-instructions/train.jsonl` and
+`--eval-file data/social-instructions/validation.jsonl` after preparing and
+shipping those files to the job environment.
+
 The generated GPU job trains and saves the adapter locally, evaluates generated
 posts from that saved adapter, then uploads the adapter folder with
 `scripts/upload_hf_adapter.py --create-pr`. PR-mode upload is the default

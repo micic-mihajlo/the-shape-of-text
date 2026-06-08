@@ -6,8 +6,9 @@ model.
 
 ## Inputs
 
-- `data/social-instructions/train.jsonl`
-- `data/social-instructions/validation.jsonl`
+- Smoke/preflight: committed fake examples under `examples/social_instructions/`
+- Quality run: prepared files such as `data/social-instructions/train.jsonl`
+  and `data/social-instructions/validation.jsonl`
 - Hugging Face token with access to `google/gemma-4-12B`
 - Target adapter repo, for example:
   `micic-mihajlo/gemma-4-12b-social-post-lora`
@@ -65,7 +66,7 @@ python scripts/validate_preflight.py \
 ```
 
 For a systems-only smoke job from a clean clone, use the committed fake examples
-instead of local ignored data:
+instead of local ignored data. These are the payload defaults:
 
 ```bash
 python scripts/build_hf_job_payload.py \
