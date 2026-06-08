@@ -280,6 +280,10 @@ def _chat_template_ids(
         tokenize=True,
         add_generation_prompt=add_generation_prompt,
     )
+    if isinstance(ids, str):
+        ids = tokenizer(ids, add_special_tokens=False)["input_ids"]
+    if isinstance(ids, dict):
+        ids = ids["input_ids"]
     if hasattr(ids, "tolist"):
         ids = ids.tolist()
     return list(ids)

@@ -55,6 +55,17 @@ class DummyChatTokenizer:
         return [ord(char) for char in text]
 
 
+class DummyStringChatTokenizer(DummyChatTokenizer):
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False):
+        return "".join(
+            f"<{message['role']}>" + message["content"] + f"</{message['role']}>"
+            for message in messages
+        ) + ("<assistant>" if add_generation_prompt else "")
+
+    def __call__(self, text, add_special_tokens=False):
+        return {"input_ids": [ord(char) for char in text]}
+
+
 def test_alignment_weight_warmup_schedule():
     trainer = object.__new__(AlignmentTrainer)
     trainer.state = SimpleNamespace(global_step=4)
@@ -82,6 +93,18 @@ def test_tokenize_chat_instruction_masks_prompt_prefix():
     assert labels[:first_label] == [-100] * first_label
     assert labels[first_label:] == input_ids[first_label:]
     assert attention_mask == [1] * len(input_ids)
+
+
+def test_tokenize_chat_instruction_handles_string_chat_template_return():
+    input_ids, _, labels = tokenize_chat_instruction(
+        DummyStringChatTokenizer(),
+        prompt="Write a post.",
+        completion="We shipped the small fix today.",
+        max_length=512,
+    )
+
+    assert all(isinstance(token_id, int) for token_id in input_ids)
+    assert any(label != -100 for label in labels)
 
 
 def test_causal_lm_collator_pads_labels_on_right():
