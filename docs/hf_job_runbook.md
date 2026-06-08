@@ -67,6 +67,24 @@ instead of local ignored data:
 ```bash
 python scripts/build_hf_job_payload.py \
   --git-ref YOUR_COMMITTED_SHA \
+  --mode preflight \
+  --train-file examples/social_instructions/train.jsonl \
+  --eval-file examples/social_instructions/validation.jsonl \
+  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --detach \
+  > hf-preflight-job.json
+```
+
+The preflight payload uses a CPU flavor by default. It clones the committed SHA,
+installs the package, checks the module entrypoint, validates example data,
+validates a generated smoke payload, and runs the test suite. It does not need
+`HF_TOKEN` because it does not download Gemma or push an adapter.
+
+For the GPU Gemma smoke job, use:
+
+```bash
+python scripts/build_hf_job_payload.py \
+  --git-ref YOUR_COMMITTED_SHA \
   --mode smoke \
   --train-file examples/social_instructions/train.jsonl \
   --eval-file examples/social_instructions/validation.jsonl \

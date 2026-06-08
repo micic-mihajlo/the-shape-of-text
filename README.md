@@ -258,6 +258,12 @@ To generate a Hugging Face Jobs payload:
 ```bash
 python scripts/build_hf_job_payload.py \
   --git-ref YOUR_COMMITTED_SHA \
+  --mode preflight \
+  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --detach
+
+python scripts/build_hf_job_payload.py \
+  --git-ref YOUR_COMMITTED_SHA \
   --mode smoke \
   --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
   --detach

@@ -22,7 +22,9 @@ def shell_join(parts: list[str]) -> str:
 def training_args(args: argparse.Namespace) -> list[str]:
     max_steps = 10 if args.mode == "smoke" else args.max_steps
     max_length = 512 if args.mode == "smoke" else args.max_length
-    eval_steps = min(args.eval_steps, max_steps) if args.mode == "full" else max(1, max_steps // 2)
+    eval_steps = (
+        min(args.eval_steps, max_steps) if args.mode == "full" else max(1, max_steps // 2)
+    )
     save_steps = min(args.save_steps, max_steps) if args.mode == "full" else max_steps
     logging_steps = args.logging_steps if args.mode == "full" else 1
     lora_r = min(args.lora_r, 8) if args.mode == "smoke" else args.lora_r
@@ -92,20 +94,57 @@ def training_args(args: argparse.Namespace) -> list[str]:
     ]
 
 
-def build_command(args: argparse.Namespace) -> list[str]:
-    clone_target = "/workspace/the-shape-of-text"
-    train_command = shell_join(training_args(args))
-    shell = f"""
+def clone_and_install_shell(args: argparse.Namespace) -> str:
+    return f"""
 set -euo pipefail
 if ! command -v git >/dev/null 2>&1; then
   apt-get update
   apt-get install -y git
 fi
-git clone {shlex.quote(args.repo_url)} {clone_target}
-cd {clone_target}
+git clone {shlex.quote(args.repo_url)} /workspace/the-shape-of-text
+cd /workspace/the-shape-of-text
 git checkout {shlex.quote(args.git_ref)}
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
+""".strip()
+
+
+def build_preflight_command(args: argparse.Namespace) -> list[str]:
+    payload_command = shell_join(
+        [
+            "python",
+            "scripts/build_hf_job_payload.py",
+            "--git-ref",
+            args.git_ref,
+            "--mode",
+            "smoke",
+            "--train-file",
+            str(args.train_file),
+            "--eval-file",
+            str(args.eval_file),
+            "--hub-model-id",
+            args.hub_model_id,
+            "--detach",
+        ]
+    )
+    shell = f"""
+{clone_and_install_shell(args)}
+python -m shape_of_text.train --help >/tmp/train_help.txt
+python scripts/validate_preflight.py \\
+  --train-file {shlex.quote(str(args.train_file))} \\
+  --eval-file {shlex.quote(str(args.eval_file))}
+{payload_command} >/tmp/hf_payload.json
+python -m json.tool /tmp/hf_payload.json >/dev/null
+python -m pytest -q
+printf '\\nREMOTE_CPU_PREFLIGHT_OK\\n'
+""".strip()
+    return ["/bin/bash", "-lc", shell]
+
+
+def build_command(args: argparse.Namespace) -> list[str]:
+    train_command = shell_join(training_args(args))
+    shell = f"""
+{clone_and_install_shell(args)}
 {train_command}
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
@@ -140,21 +179,35 @@ python scripts/write_adapter_report.py \\
 
 
 def build_payload(args: argparse.Namespace) -> dict:
+    command = build_preflight_command(args) if args.mode == "preflight" else build_command(args)
     payload = {
         "operation": "run",
         "args": {
             "image": args.image,
-            "command": build_command(args),
-            "flavor": args.flavor,
-            "timeout": args.timeout,
-            "secrets": {"HF_TOKEN": "$HF_TOKEN"},
+            "command": command,
+            "flavor": selected_flavor(args),
+            "timeout": selected_timeout(args),
         },
     }
+    if args.mode != "preflight":
+        payload["args"]["secrets"] = {"HF_TOKEN": "$HF_TOKEN"}
     if args.detach:
         payload["args"]["detach"] = True
     if args.volume:
         payload["args"]["volumes"] = args.volume
     return payload
+
+
+def selected_flavor(args: argparse.Namespace) -> str:
+    if args.flavor:
+        return args.flavor
+    return "cpu-upgrade" if args.mode == "preflight" else "l40sx1"
+
+
+def selected_timeout(args: argparse.Namespace) -> str:
+    if args.timeout:
+        return args.timeout
+    return "45m" if args.mode == "preflight" else "2h"
 
 
 def parse_args() -> argparse.Namespace:
@@ -164,10 +217,10 @@ def parse_args() -> argparse.Namespace:
         default="https://github.com/micic-mihajlo/the-shape-of-text.git",
     )
     parser.add_argument("--git-ref", required=True)
-    parser.add_argument("--mode", choices=("smoke", "full"), default="smoke")
+    parser.add_argument("--mode", choices=("preflight", "smoke", "full"), default="smoke")
     parser.add_argument("--image", default=DEFAULT_IMAGE)
-    parser.add_argument("--flavor", default="l40sx1")
-    parser.add_argument("--timeout", default="2h")
+    parser.add_argument("--flavor", default=None)
+    parser.add_argument("--timeout", default=None)
     parser.add_argument("--detach", action="store_true")
     parser.add_argument("--volume", action="append", default=[])
     parser.add_argument("--model-id", default="google/gemma-4-12B")

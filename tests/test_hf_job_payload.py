@@ -64,3 +64,32 @@ def test_full_payload_uses_requested_steps(monkeypatch):
     assert "--max-length 768" in command
     assert "--eval-steps 100" in command
     assert "--save-steps 123" in command
+
+
+def test_preflight_payload_uses_cpu_and_skips_hub_secret(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "build_hf_job_payload.py",
+            "--git-ref",
+            "abc123",
+            "--mode",
+            "preflight",
+            "--hub-model-id",
+            "micic-mihajlo/adapter",
+            "--train-file",
+            "examples/social_instructions/train.jsonl",
+            "--eval-file",
+            "examples/social_instructions/validation.jsonl",
+        ],
+    )
+    payload = build_payload(parse_args())
+    command = "\n".join(payload["args"]["command"])
+    assert payload["args"]["flavor"] == "cpu-upgrade"
+    assert payload["args"]["timeout"] == "45m"
+    assert "secrets" not in payload["args"]
+    assert "python -m shape_of_text.train --help" in command
+    assert "scripts/validate_preflight.py" in command
+    assert "scripts/build_hf_job_payload.py" in command
+    assert "python -m pytest -q" in command
+    assert "REMOTE_CPU_PREFLIGHT_OK" in command
