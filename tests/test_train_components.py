@@ -14,6 +14,7 @@ from shape_of_text.train import (
     fsdp_uses_activation_checkpointing,
     recast_non_quantized_params_for_fsdp,
     trainer_gradient_checkpointing_enabled,
+    trainer_optimizer_name,
 )
 
 
@@ -111,3 +112,21 @@ def test_recast_non_quantized_params_for_fsdp_makes_float_params_uniform():
 
     assert model.fp32.dtype is torch.bfloat16
     assert model.bf16.dtype is torch.bfloat16
+
+
+def test_trainer_optimizer_uses_torch_adam_for_fsdp_qlora():
+    args = SimpleNamespace(fsdp="full_shard auto_wrap", no_4bit=False)
+
+    assert trainer_optimizer_name(args) == "adamw_torch"
+
+
+def test_trainer_optimizer_uses_bitsandbytes_without_fsdp_qlora():
+    args = SimpleNamespace(fsdp="", no_4bit=False)
+
+    assert trainer_optimizer_name(args) == "paged_adamw_8bit"
+
+
+def test_trainer_optimizer_uses_torch_adam_without_4bit():
+    args = SimpleNamespace(fsdp="", no_4bit=True)
+
+    assert trainer_optimizer_name(args) == "adamw_torch"

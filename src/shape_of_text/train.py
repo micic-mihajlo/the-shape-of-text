@@ -423,6 +423,12 @@ def trainer_gradient_checkpointing_enabled(
     return not bool(args.fsdp and fsdp_uses_activation_checkpointing(fsdp_config))
 
 
+def trainer_optimizer_name(args: argparse.Namespace) -> str:
+    if args.fsdp:
+        return "adamw_torch"
+    return "paged_adamw_8bit" if not args.no_4bit else "adamw_torch"
+
+
 def build_training_arguments(
     args: argparse.Namespace,
     has_validation: bool,
@@ -447,7 +453,7 @@ def build_training_arguments(
         "eval_strategy": eval_value,
         "evaluation_strategy": eval_value,
         "remove_unused_columns": False,
-        "optim": "paged_adamw_8bit" if not args.no_4bit else "adamw_torch",
+        "optim": trainer_optimizer_name(args),
         "fsdp": args.fsdp,
         "fsdp_config": fsdp_config,
         "push_to_hub": args.push_to_hub,

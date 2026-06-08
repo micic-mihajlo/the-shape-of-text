@@ -124,6 +124,8 @@ sharding, raise `num_processes` to the GPU count before launching.
 The memory-critical switches are already set for the intended QLoRA path:
 
 - 4-bit NF4 quantization with bf16 compute and bf16 quant storage.
+- FSDP/QLoRA runs use `adamw_torch`; non-FSDP QLoRA can still use the
+  bitsandbytes paged 8-bit optimizer.
 - LoRA only on attention and MLP projection modules.
 - Gradient checkpointing with non-reentrant checkpointing where supported.
 - FSDP `FULL_SHARD`, transformer auto-wrap, sharded state dicts, and

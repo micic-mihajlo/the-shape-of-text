@@ -29,6 +29,10 @@ model dtype for FSDP/QLoRA runs. This keeps LoRA weights, layer norms, regular
 linear weights, and 4-bit quantized storage aligned at `bf16`, which FSDP needs
 before it can shard wrapped modules.
 
+FSDP runs use Transformers' `adamw_torch` optimizer even when the model weights
+are loaded through 4-bit QLoRA. This avoids mixing FSDP2 DTensors with
+bitsandbytes' 8-bit optimizer update kernels during the optimizer step.
+
 ## Transformer Layer Class
 
 The default layer class is:
