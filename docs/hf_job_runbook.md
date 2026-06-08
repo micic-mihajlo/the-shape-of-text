@@ -49,6 +49,10 @@ Accelerate config uses `num_processes: 1` so the default payload matches those
 one-GPU flavors. Only increase GPU count, length, and steps after the smoke logs
 show a clean train step, eval step, and adapter save.
 
+In smoke mode, `scripts/build_hf_job_payload.py` also lowers LoRA to rank 8,
+logs every step, evaluates at step 5, and saves at step 10. That makes the smoke
+run a systems proof, not a quality run.
+
 Before launching, run preflight locally:
 
 ```bash

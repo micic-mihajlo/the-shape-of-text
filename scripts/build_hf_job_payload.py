@@ -22,6 +22,11 @@ def shell_join(parts: list[str]) -> str:
 def training_args(args: argparse.Namespace) -> list[str]:
     max_steps = 10 if args.mode == "smoke" else args.max_steps
     max_length = 512 if args.mode == "smoke" else args.max_length
+    eval_steps = min(args.eval_steps, max_steps) if args.mode == "full" else max(1, max_steps // 2)
+    save_steps = min(args.save_steps, max_steps) if args.mode == "full" else max_steps
+    logging_steps = args.logging_steps if args.mode == "full" else 1
+    lora_r = min(args.lora_r, 8) if args.mode == "smoke" else args.lora_r
+    lora_alpha = min(args.lora_alpha, 16) if args.mode == "smoke" else args.lora_alpha
     output_dir = f"/workspace/runs/{args.adapter_name}-{args.mode}"
 
     return [
@@ -59,6 +64,16 @@ def training_args(args: argparse.Namespace) -> list[str]:
         str(args.gradient_accumulation_steps),
         "--learning-rate",
         str(args.learning_rate),
+        "--eval-steps",
+        str(eval_steps),
+        "--save-steps",
+        str(save_steps),
+        "--logging-steps",
+        str(logging_steps),
+        "--lora-r",
+        str(lora_r),
+        "--lora-alpha",
+        str(lora_alpha),
         "--mmd-weight",
         str(args.mmd_weight),
         "--jmq-weight",
@@ -172,6 +187,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-length", type=int, default=1024)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
+    parser.add_argument("--eval-steps", type=int, default=100)
+    parser.add_argument("--save-steps", type=int, default=250)
+    parser.add_argument("--logging-steps", type=int, default=10)
+    parser.add_argument("--lora-r", type=int, default=16)
+    parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--mmd-weight", type=float, default=0.03)
     parser.add_argument("--jmq-weight", type=float, default=0.03)
     parser.add_argument("--mmd-warmup-steps", type=int, default=100)

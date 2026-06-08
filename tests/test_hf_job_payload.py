@@ -26,6 +26,11 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert command.index("command -v git") < command.index("git clone")
     assert "--max-steps 10" in command
     assert "--max-length 512" in command
+    assert "--eval-steps 5" in command
+    assert "--save-steps 10" in command
+    assert "--logging-steps 1" in command
+    assert "--lora-r 8" in command
+    assert "--lora-alpha 16" in command
     assert "--push-to-hub" in command
     assert "--hub-token ${HF_TOKEN}" in command
     assert "scripts/generate_social_posts.py" in command
@@ -56,3 +61,5 @@ def test_full_payload_uses_requested_steps(monkeypatch):
     command = "\n".join(payload["args"]["command"])
     assert "--max-steps 123" in command
     assert "--max-length 768" in command
+    assert "--eval-steps 100" in command
+    assert "--save-steps 123" in command
