@@ -19,6 +19,7 @@ REQUIRED_FILES = [
     "scripts/evaluate_social_style.py",
     "scripts/compare_social_outputs.py",
     "scripts/write_adapter_report.py",
+    "scripts/upload_hf_adapter.py",
     "configs/accelerate_fsdp_qlora_gemma4_12b.yaml",
     "configs/trainer_fsdp_qlora_gemma4_12b.json",
     "configs/social_eval_briefs.jsonl",

@@ -36,10 +36,13 @@ accelerate launch \
   --jmq-weight 0.03 \
   --mmd-warmup-steps 100 \
   --jmq-warmup-steps 100 \
-  --kl-eval-batches 8 \
-  --push-to-hub \
-  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora
+  --kl-eval-batches 8
 ```
+
+After local training, upload the saved adapter folder with
+`scripts/upload_hf_adapter.py`. On Hugging Face Jobs, prefer the generated job
+payload because Jobs write tokens may require pull-request uploads instead of
+direct commits to `main`.
 
 ## HF Jobs Shape
 
@@ -112,13 +115,16 @@ The generated job command will:
 2. Install `git` and `build-essential` if the CUDA image does not include them.
 3. Install `pip install -e ".[dev]"`.
 4. Run the `accelerate launch` command above with the smoke settings.
-5. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights and push
-   the adapter.
+5. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights.
 6. Generate held-out posts from `configs/social_eval_briefs.jsonl`.
 7. Run deterministic style metrics against the validation completions.
 8. Compare base-model generations against adapter generations.
 9. Write a model-card draft and `eval_summary.json` into
    `/workspace/adapter_report`.
+10. Copy report artifacts into the saved adapter folder.
+11. Upload the adapter folder with `scripts/upload_hf_adapter.py --create-pr`;
+    this works with Jobs tokens that can open Hub PRs but cannot write directly
+    to `main`.
 
 Do not start with a long run. The first paid run is a systems test, not a model
 quality run.

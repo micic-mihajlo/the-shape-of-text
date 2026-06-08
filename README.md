@@ -234,8 +234,8 @@ Current local validation status:
 - Full Gemma 4 12B FSDP/QLoRA has not been run on this Mac because there is no
   CUDA GPU available.
 
-See `docs/hf_job_runbook.md` for the paid GPU job path that pushes the LoRA
-adapter to Hugging Face.
+See `docs/hf_job_runbook.md` for the paid GPU job path that trains, evaluates,
+and uploads the LoRA adapter to Hugging Face.
 
 For a preflight check before the paid run:
 
@@ -268,6 +268,12 @@ python scripts/build_hf_job_payload.py \
   --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
   --detach
 ```
+
+The generated GPU job trains and saves the adapter locally, evaluates generated
+posts from that saved adapter, then uploads the adapter folder with
+`scripts/upload_hf_adapter.py --create-pr`. PR-mode upload is the default
+because Hugging Face Jobs tokens may be allowed to open Hub PRs while direct
+commits to `main` are forbidden.
 
 After generation and style evaluation, write adapter report artifacts:
 

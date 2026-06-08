@@ -34,12 +34,17 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert "--logging-steps 1" in command
     assert "--lora-r 8" in command
     assert "--lora-alpha 16" in command
-    assert "--push-to-hub" in command
-    assert "--hub-token ${HF_TOKEN}" in command
+    assert "--push-to-hub" not in command
+    assert "--adapter-id /workspace/runs/gemma-4-12b-social-post-lora-smoke" in command
     assert "scripts/generate_social_posts.py" in command
     assert "base_posts.jsonl" in command
     assert "adapter_posts.jsonl" in command
     assert "scripts/compare_social_outputs.py" in command
+    assert "cp /workspace/adapter_report/README.md" in command
+    assert "cp /workspace/comparison_report.json" in command
+    assert "scripts/upload_hf_adapter.py" in command
+    assert "--token ${HF_TOKEN}" in command
+    assert "--create-pr" in command
     assert payload["args"]["secrets"] == {"HF_TOKEN": "$HF_TOKEN"}
 
 

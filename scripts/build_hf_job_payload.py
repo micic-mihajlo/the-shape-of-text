@@ -19,6 +19,10 @@ def shell_join(parts: list[str]) -> str:
     )
 
 
+def training_output_dir(args: argparse.Namespace) -> str:
+    return f"/workspace/runs/{args.adapter_name}-{args.mode}"
+
+
 def training_args(args: argparse.Namespace) -> list[str]:
     max_steps = 10 if args.mode == "smoke" else args.max_steps
     max_length = 512 if args.mode == "smoke" else args.max_length
@@ -29,9 +33,9 @@ def training_args(args: argparse.Namespace) -> list[str]:
     logging_steps = args.logging_steps if args.mode == "full" else 1
     lora_r = min(args.lora_r, 8) if args.mode == "smoke" else args.lora_r
     lora_alpha = min(args.lora_alpha, 16) if args.mode == "smoke" else args.lora_alpha
-    output_dir = f"/workspace/runs/{args.adapter_name}-{args.mode}"
+    output_dir = training_output_dir(args)
 
-    return [
+    command = [
         "accelerate",
         "launch",
         "--config_file",
@@ -86,12 +90,18 @@ def training_args(args: argparse.Namespace) -> list[str]:
         str(args.jmq_warmup_steps),
         "--kl-eval-batches",
         str(args.kl_eval_batches),
-        "--push-to-hub",
-        "--hub-model-id",
-        args.hub_model_id,
-        "--hub-token",
-        HF_TOKEN_PLACEHOLDER,
     ]
+    if args.trainer_push_to_hub:
+        command.extend(
+            [
+                "--push-to-hub",
+                "--hub-model-id",
+                args.hub_model_id,
+                "--hub-token",
+                HF_TOKEN_PLACEHOLDER,
+            ]
+        )
+    return command
 
 
 def clone_and_install_shell(args: argparse.Namespace) -> str:
@@ -144,6 +154,20 @@ printf '\\nREMOTE_CPU_PREFLIGHT_OK\\n'
 
 def build_command(args: argparse.Namespace) -> list[str]:
     train_command = shell_join(training_args(args))
+    output_dir = training_output_dir(args)
+    upload_args = [
+        "python",
+        "scripts/upload_hf_adapter.py",
+        "--repo-id",
+        args.hub_model_id,
+        "--folder",
+        output_dir,
+        "--token",
+        HF_TOKEN_PLACEHOLDER,
+    ]
+    if args.hub_create_pr:
+        upload_args.append("--create-pr")
+    upload_command = shell_join(upload_args)
     shell = f"""
 {clone_and_install_shell(args)}
 {train_command}
@@ -153,7 +177,7 @@ python scripts/generate_social_posts.py \\
   --output-file /workspace/base_posts.jsonl
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
-  --adapter-id {shlex.quote(args.hub_model_id)} \\
+  --adapter-id {shlex.quote(output_dir)} \\
   --briefs-file configs/social_eval_briefs.jsonl \\
   --output-file /workspace/adapter_posts.jsonl
 python scripts/evaluate_social_style.py \\
@@ -175,6 +199,12 @@ python scripts/write_adapter_report.py \\
   --style-report /workspace/style_report.json \\
   --comparison-report /workspace/comparison_report.json \\
   --output-dir /workspace/adapter_report
+cp /workspace/adapter_report/README.md {shlex.quote(output_dir)}/README.md
+cp /workspace/adapter_report/eval_summary.json {shlex.quote(output_dir)}/eval_summary.json
+cp /workspace/adapter_posts.jsonl {shlex.quote(output_dir)}/adapter_posts.jsonl
+cp /workspace/style_report.json {shlex.quote(output_dir)}/style_report.json
+cp /workspace/comparison_report.json {shlex.quote(output_dir)}/comparison_report.json
+{upload_command}
 """.strip()
     return ["/bin/bash", "-lc", shell]
 
@@ -251,6 +281,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mmd-warmup-steps", type=int, default=100)
     parser.add_argument("--jmq-warmup-steps", type=int, default=100)
     parser.add_argument("--kl-eval-batches", type=int, default=8)
+    parser.add_argument("--trainer-push-to-hub", action="store_true")
+    parser.add_argument("--hub-create-pr", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
 
