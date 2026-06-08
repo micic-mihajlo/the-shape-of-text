@@ -9,6 +9,11 @@ from pathlib import Path
 
 DEFAULT_IMAGE = "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
 HF_TOKEN_PLACEHOLDER = "${HF_TOKEN}"
+GENERATION_EVAL_ARGS = (
+    "  --max-new-tokens 140 \\\n"
+    "  --repetition-penalty 1.12 \\\n"
+    "  --no-repeat-ngram-size 5 \\\n"
+)
 
 
 def shell_join(parts: list[str]) -> str:
@@ -205,12 +210,14 @@ def build_command(args: argparse.Namespace) -> list[str]:
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
 {chat_template_arg}\
+{GENERATION_EVAL_ARGS}\
   --briefs-file configs/social_eval_briefs.jsonl \\
   --output-file /workspace/base_posts.jsonl
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
   --adapter-id {shlex.quote(output_dir)} \\
 {chat_template_arg}\
+{GENERATION_EVAL_ARGS}\
   --briefs-file configs/social_eval_briefs.jsonl \\
   --output-file /workspace/adapter_posts.jsonl
 python scripts/check_generation_quality.py \\

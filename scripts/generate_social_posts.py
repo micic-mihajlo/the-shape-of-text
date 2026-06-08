@@ -163,6 +163,8 @@ def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str
             "pad_token_id": tokenizer.pad_token_id,
             "eos_token_id": tokenizer.eos_token_id,
         }
+        if args.no_repeat_ngram_size > 0:
+            generation_kwargs["no_repeat_ngram_size"] = args.no_repeat_ngram_size
         if args.temperature > 0:
             generation_kwargs["temperature"] = args.temperature
             generation_kwargs["top_p"] = args.top_p
@@ -189,10 +191,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("configs/social_eval_briefs.jsonl"),
     )
     parser.add_argument("--output-file", type=Path, default=Path("outputs/generated_posts.jsonl"))
-    parser.add_argument("--max-new-tokens", type=int, default=220)
+    parser.add_argument("--max-new-tokens", type=int, default=140)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.9)
-    parser.add_argument("--repetition-penalty", type=float, default=1.05)
+    parser.add_argument("--repetition-penalty", type=float, default=1.12)
+    parser.add_argument("--no-repeat-ngram-size", type=int, default=5)
     parser.add_argument("--use-chat-template", action="store_true")
     parser.add_argument(
         "--suppress-control-tokens",
