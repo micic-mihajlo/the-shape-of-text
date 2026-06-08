@@ -32,6 +32,25 @@ def test_quality_rejects_prompt_echo():
     assert "prompt_echo" in {issue.code for issue in result.issues}
 
 
+def test_quality_allows_requested_changelog_terms():
+    result = evaluate_completion_quality(
+        {
+            "prompt": (
+                "Write a product changelog post about adding prompt-to-output training "
+                "examples, KL tracking, and adapter publishing. Keep it plain and specific."
+            ),
+            "completion": (
+                "Small changelog today: the training flow now supports prompt-to-output "
+                "examples, KL tracking, and adapter publishing in one path. It makes the "
+                "run easier to inspect and gives us a cleaner handoff from experiment to "
+                "usable adapter."
+            ),
+        }
+    )
+
+    assert result.ok
+
+
 def test_quality_rejects_unicode_token_soup():
     result = evaluate_completion_quality(
         {

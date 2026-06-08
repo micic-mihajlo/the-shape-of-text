@@ -121,6 +121,37 @@ def prompt_echo_score(completion: str, prompt: str) -> float:
     return longest / max(1, min(len(prompt_norm), len(completion_norm)))
 
 
+def copies_prompt_instruction(completion: str, prompt: str) -> bool:
+    prompt_norm = normalize_for_overlap(prompt)
+    completion_norm = normalize_for_overlap(completion)
+    if not prompt_norm or not completion_norm:
+        return False
+
+    prompt_words = prompt_norm.split()
+    starts = [0]
+    starts.extend(
+        index
+        for index, word in enumerate(prompt_words[:12])
+        if word in {"write", "explain"}
+    )
+    for start in starts:
+        prefix = " ".join(prompt_words[start : start + 8])
+        if len(prefix) < 24:
+            continue
+        if completion_norm.startswith(prefix) or prefix in completion_norm[:180]:
+            return True
+
+    instruction_phrases = (
+        "the post should",
+        "do not claim",
+        "do not mention",
+        "keep it plain",
+        "keep the tone",
+        "make the ask",
+    )
+    return any(phrase in prompt_norm and phrase in completion_norm for phrase in instruction_phrases)
+
+
 def _matches_any(patterns: Iterable[str], text: str) -> list[str]:
     return [
         pattern
@@ -252,7 +283,7 @@ def evaluate_completion_quality(
         )
 
     echo = prompt_echo_score(completion, prompt)
-    if echo > max_prompt_echo_score:
+    if echo > max_prompt_echo_score and copies_prompt_instruction(completion, prompt):
         issues.append(
             QualityIssue(
                 "prompt_echo",
