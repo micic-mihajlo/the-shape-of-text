@@ -7,7 +7,7 @@ import shlex
 from pathlib import Path
 
 
-DEFAULT_IMAGE = "pytorch/pytorch:2.12.0-cuda12.8-cudnn9-runtime"
+DEFAULT_IMAGE = "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
 HF_TOKEN_PLACEHOLDER = "${HF_TOKEN}"
 
 
