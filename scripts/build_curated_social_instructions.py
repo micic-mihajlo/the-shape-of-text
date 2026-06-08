@@ -145,6 +145,14 @@ def direct_prompt(text: str) -> str:
     return text + DIRECT_POST_INSTRUCTION
 
 
+def variant_index(*parts: str, modulo: int) -> int:
+    return sum(ord(char) for part in parts for char in part) % modulo
+
+
+def choose(options: list[str], *parts: str) -> str:
+    return options[variant_index(*parts, modulo=len(options))]
+
+
 def prompt_for(topic: dict[str, str], archetype: str, platform: str) -> str:
     audience = topic["audience"]
     base = f"Write a {platform} post about {topic['topic']}."
@@ -196,60 +204,193 @@ def completion_for(topic: dict[str, str], archetype: str, platform: str) -> str:
     ask = topic["ask"]
 
     if archetype == "launch":
-        return (
-            f"Small launch today: {title}.\n\n"
-            f"The useful change is simple: {detail}. It removes {friction}, which is "
-            "exactly the kind of small drag that compounds when people use a product "
-            f"every week.\n\nIf you try it, I want the unpolished feedback: {ask}?"
+        return choose(
+            [
+                (
+                    f"Small launch today: {title}.\n\n"
+                    f"The useful change is simple: {detail}. It removes {friction}, "
+                    "which is the kind of drag people notice only after it disappears.\n\n"
+                    f"If you try it, I want the practical feedback: {ask}?"
+                ),
+                (
+                    f"We shipped {title} today.\n\n"
+                    f"The change is not loud: {detail}. The point is to remove "
+                    f"{friction} before it turns into another support thread.\n\n"
+                    f"I would rather hear what is still awkward than get polite praise: {ask}?"
+                ),
+                (
+                    f"{title.capitalize()} is live.\n\n"
+                    f"It does one narrow thing: {detail}. That should make it easier "
+                    f"to move past {friction} without adding another step to the workflow.\n\n"
+                    f"Try it on a real run and tell me where it still breaks: {ask}?"
+                ),
+            ],
+            title,
+            archetype,
         )
     if archetype == "changelog":
-        return (
-            f"Product note: we cleaned up {title}.\n\n"
-            f"What changed: {detail}.\n"
-            f"Why it matters: it removes {friction}.\n"
-            "The goal was not to make the workflow bigger. It was to make the next "
-            "obvious step easier to trust."
+        return choose(
+            [
+                (
+                    f"Product note: we cleaned up {title}.\n\n"
+                    f"What changed: {detail}.\n"
+                    f"Why it matters: it removes {friction}.\n"
+                    "The goal was not to make the workflow bigger. It was to make the "
+                    "next obvious step easier to trust."
+                ),
+                (
+                    f"Changelog: {title} got a small but useful pass.\n\n"
+                    f"Now {detail}. That means less time lost to {friction} and fewer "
+                    "moments where the product asks people to remember state it should handle."
+                ),
+                (
+                    f"We made {title} a little clearer this week.\n\n"
+                    f"The main update: {detail}. It is a small fix, but it cuts down on "
+                    f"{friction} in the part of the workflow people repeat most often."
+                ),
+            ],
+            title,
+            archetype,
         )
     if archetype == "lesson":
-        return (
-            f"Lesson from shipping {title}: small checks beat late cleanup.\n\n"
-            f"We found that {detail}. That mattered because the old path created "
-            f"{friction}.\n\n"
-            "The fix was not dramatic. It just made the workflow honest earlier, "
-            "before a small miss turned into a public artifact."
+        return choose(
+            [
+                (
+                    f"Lesson from shipping {title}: small checks beat late cleanup.\n\n"
+                    f"We found that {detail}. That mattered because the old path created "
+                    f"{friction}.\n\n"
+                    "The fix was not dramatic. It made the workflow honest earlier, "
+                    "before a small miss turned into a public artifact."
+                ),
+                (
+                    f"A useful reminder from {title}: the cheapest bug is the one you "
+                    "catch before the real run starts.\n\n"
+                    f"Once {detail}, the team stopped losing time to {friction}. "
+                    "That kind of cleanup compounds quietly."
+                ),
+                (
+                    f"Shipping {title} reinforced a simple rule: test the handoff, not "
+                    "just the happy path.\n\n"
+                    f"The practical win was that {detail}. The old version left people "
+                    f"dealing with {friction}, and that was too easy to miss in a demo."
+                ),
+            ],
+            title,
+            archetype,
         )
     if archetype == "field_report":
-        return (
-            f"Field report: {title} is in better shape.\n\n"
-            f"What worked: {detail}.\n"
-            f"What changed: the default path no longer leaves people dealing with {friction}.\n"
-            f"Next step: watch real usage and tighten the part people still question: {ask}."
+        return choose(
+            [
+                (
+                    f"Field report: {title} is in better shape.\n\n"
+                    f"What worked: {detail}.\n"
+                    f"What changed: the default path no longer leaves people dealing with {friction}.\n"
+                    f"Next step: watch real usage and tighten the part people still question: {ask}."
+                ),
+                (
+                    f"Quick field note on {title}.\n\n"
+                    f"The useful part is that {detail}. The old flow created {friction}, "
+                    "so the bar for this update was simple: make the common path easier "
+                    f"without hiding the edge cases.\n\nNext up: {ask}."
+                ),
+                (
+                    f"We put {title} through a real-use pass this week.\n\n"
+                    f"The strongest signal: {detail}. The weak spot was {friction}, "
+                    "especially when people repeated the workflow more than once.\n\n"
+                    f"The next question is sharper now: {ask}."
+                ),
+            ],
+            title,
+            archetype,
         )
     if archetype == "contrarian":
-        return (
-            "A take I keep coming back to: the best product updates usually feel "
-            f"smaller than the work behind them.\n\nWith {title}, the point was not "
-            f"to add more surface area. The point was that {detail}, so users avoid "
-            f"{friction}.\n\nUseful beats impressive here."
+        return choose(
+            [
+                (
+                    "A take I keep coming back to: the best product updates usually feel "
+                    f"smaller than the work behind them.\n\nWith {title}, the point was not "
+                    f"to add more surface area. The point was that {detail}, so users avoid "
+                    f"{friction}.\n\nUseful beats impressive here."
+                ),
+                (
+                    f"{title.capitalize()} is a good reminder that polish is not always "
+                    "a new screen.\n\n"
+                    f"Sometimes it is just {detail}, so the product stops making people "
+                    f"pay attention to {friction}."
+                ),
+                (
+                    "Not every meaningful product update deserves a big announcement.\n\n"
+                    f"{title.capitalize()} matters because {detail}. It removes {friction}, "
+                    "which is exactly the sort of small annoyance that makes a tool feel heavier."
+                ),
+            ],
+            title,
+            archetype,
         )
     if archetype == "ask":
-        return (
-            f"We are testing {title} with a sharper constraint: feedback has to point "
-            "to a real workflow, not a vague preference.\n\n"
-            f"The current improvement is that {detail}. The risk is that we only solved "
-            f"the visible part of the problem: {friction}.\n\n"
-            f"If you have seen this break down, I would like to know: {ask}?"
+        return choose(
+            [
+                (
+                    f"We are testing {title} with a sharper constraint: feedback has to "
+                    "point to a real workflow, not a vague preference.\n\n"
+                    f"The current improvement is that {detail}. The risk is that we only "
+                    f"solved the visible part of the problem: {friction}.\n\n"
+                    f"If you have seen this break down, I would like to know: {ask}?"
+                ),
+                (
+                    f"If you have dealt with {friction}, I would like your read on {title}.\n\n"
+                    f"The update now means {detail}. That sounds simple, but the useful "
+                    f"test is whether it holds up in a real workflow. What would you check first: {ask}?"
+                ),
+                (
+                    f"We are looking for blunt feedback on {title}.\n\n"
+                    f"Today it handles one thing better: {detail}. I want to know where "
+                    f"it still creates {friction}, especially for teams using it more than once a week.\n\n"
+                    f"What would you inspect first: {ask}?"
+                ),
+            ],
+            title,
+            archetype,
         )
     if archetype == "technical_plain":
-        return (
-            f"The technical value of {title} is not the machinery around it. It is the "
-            f"behavior change: {detail}.\n\nThat matters because users should not have "
-            f"to think about {friction}. A good system makes the correct path feel "
-            "boring, repeatable, and easy to inspect."
+        return choose(
+            [
+                (
+                    f"The technical value of {title} is simple: {detail}.\n\n"
+                    f"That matters because people should not have to work around {friction}. "
+                    "The implementation is useful only if the normal path feels clearer after it ships."
+                ),
+                (
+                    f"You do not need the implementation details to understand {title}.\n\n"
+                    f"The important change is that {detail}. In practice, that means less "
+                    f"time spent on {friction} and more confidence that the next step is the right one."
+                ),
+                (
+                    f"{title.capitalize()} helps because {detail}.\n\n"
+                    f"That removes {friction} from the part of the workflow people repeat. "
+                    "For users, that is the real technical win: fewer decisions, clearer state, and less cleanup."
+                ),
+            ],
+            title,
+            archetype,
         )
-    return (
-        f"Shipped: {title}. {detail}. The win is not flashy, but it cuts {friction}. "
-        f"That is the kind of update people notice after the third time they use it."
+    return choose(
+        [
+            (
+                f"Shipped: {title}. {detail}. The win is small, but it cuts {friction} "
+                "from a workflow people repeat all week."
+            ),
+            (
+                f"Tiny product update: {title}. Now {detail}, so teams spend less time "
+                f"dealing with {friction}."
+            ),
+            (
+                f"{title.capitalize()} shipped today. One practical change: {detail}. "
+                f"Less {friction}, fewer tiny moments of friction."
+            ),
+        ],
+        title,
+        archetype,
     )
 
 

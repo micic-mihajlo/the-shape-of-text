@@ -83,7 +83,27 @@ def generation_prompt(tokenizer: Any, prompt: str, *, use_chat_template: bool) -
     )
 
 
-def control_token_bad_words(tokenizer: Any) -> list[list[int]]:
+def generation_stop_token_ids(tokenizer: Any) -> list[int]:
+    ids: list[int] = []
+    for token_id in (getattr(tokenizer, "eos_token_id", None),):
+        if isinstance(token_id, int) and token_id >= 0:
+            ids.append(token_id)
+
+    for name in ("eot_token",):
+        value = getattr(tokenizer, name, None)
+        if not isinstance(value, str):
+            continue
+        token_ids = tokenizer.encode(value, add_special_tokens=False)
+        if len(token_ids) == 1:
+            ids.append(token_ids[0])
+
+    return sorted(set(ids))
+
+
+def control_token_bad_words(
+    tokenizer: Any, *, allowed_token_ids: set[int] | None = None
+) -> list[list[int]]:
+    allowed_token_ids = allowed_token_ids or set()
     token_values = {
         "<|image|>",
         "<|audio|>",
@@ -134,6 +154,8 @@ def control_token_bad_words(tokenizer: Any) -> list[list[int]]:
         ids = tokenizer.encode(token, add_special_tokens=False)
         if not ids:
             continue
+        if len(ids) == 1 and ids[0] in allowed_token_ids:
+            continue
         key = tuple(ids)
         if key in seen:
             continue
@@ -156,12 +178,20 @@ def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str
         )
         device = next(model.parameters()).device
         inputs = {key: value.to(device) for key, value in inputs.items()}
+        stop_token_ids = generation_stop_token_ids(tokenizer)
+        eos_token_id = (
+            stop_token_ids
+            if len(stop_token_ids) > 1
+            else stop_token_ids[0]
+            if stop_token_ids
+            else tokenizer.eos_token_id
+        )
         generation_kwargs = {
             "max_new_tokens": args.max_new_tokens,
             "do_sample": args.temperature > 0,
             "repetition_penalty": args.repetition_penalty,
             "pad_token_id": tokenizer.pad_token_id,
-            "eos_token_id": tokenizer.eos_token_id,
+            "eos_token_id": eos_token_id,
         }
         if args.no_repeat_ngram_size > 0:
             generation_kwargs["no_repeat_ngram_size"] = args.no_repeat_ngram_size
@@ -169,7 +199,10 @@ def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str
             generation_kwargs["temperature"] = args.temperature
             generation_kwargs["top_p"] = args.top_p
         if args.suppress_control_tokens:
-            generation_kwargs["bad_words_ids"] = control_token_bad_words(tokenizer)
+            generation_kwargs["bad_words_ids"] = control_token_bad_words(
+                tokenizer,
+                allowed_token_ids=set(stop_token_ids),
+            )
         output_ids = model.generate(**inputs, **generation_kwargs)
         generated_ids = output_ids[0, inputs["input_ids"].shape[-1] :]
         return tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
@@ -191,7 +224,7 @@ def parse_args() -> argparse.Namespace:
         default=Path("configs/social_eval_briefs.jsonl"),
     )
     parser.add_argument("--output-file", type=Path, default=Path("outputs/generated_posts.jsonl"))
-    parser.add_argument("--max-new-tokens", type=int, default=140)
+    parser.add_argument("--max-new-tokens", type=int, default=120)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--repetition-penalty", type=float, default=1.12)

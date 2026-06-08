@@ -133,6 +133,69 @@ def test_quality_rejects_repeated_phrase_loop():
     assert "repeated_phrase" in {issue.code for issue in result.issues}
 
 
+def test_quality_rejects_placeholder_and_suffix_artifacts():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one LinkedIn launch post.",
+            "completion": (
+                "We built [Framework Name] to make fine-tuning runs easier to inspect. "
+                "The useful bit is that every adapter gets a small eval report before it "
+                "is shared. [Link] #buildinpublic #shipit_with_me_today_tool_launch_post"
+            ),
+        }
+    )
+
+    codes = {issue.code for issue in result.issues}
+    assert "placeholder_text" in codes
+    assert "artifact_suffix" in codes
+    assert "hashtag_artifact" in codes
+
+
+def test_quality_rejects_too_many_hashtags():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one concise X post about a lesson learned.",
+            "completion": (
+                "Lesson learned: run the tiny smoke test before the expensive GPU job. "
+                "It catches broken paths while the fix is still cheap. "
+                "#MLOps #Engineering #AI #DevOps #LLM #Automation"
+            ),
+        }
+    )
+
+    assert "too_many_hashtags" in {issue.code for issue in result.issues}
+
+
+def test_quality_rejects_self_correction_restart():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one recap post.",
+            "completion": (
+                "That is a wrap on the weekend sprint. We got the live sync working and "
+                "the next step is cleaning up onboarding. Wait, that was too long. "
+                "Let's try again. One more time: shipped the sync, polish is next."
+            ),
+        }
+    )
+
+    assert "self_correction_restart" in {issue.code for issue in result.issues}
+
+
+def test_quality_rejects_unfinished_tail():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one plain LinkedIn post.",
+            "completion": (
+                "The useful part of the update is not the implementation detail. It is "
+                "that the next action is easier to trust, and the team no longer has to "
+                "guess which result came from the"
+            ),
+        }
+    )
+
+    assert "unfinished_tail" in {issue.code for issue in result.issues}
+
+
 def test_quality_report_summarizes_failures():
     report = quality_report(
         [

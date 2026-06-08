@@ -10,6 +10,8 @@ from typing import Any, Iterable
 _WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'_/-]*")
 _SPACE_RE = re.compile(r"\s+")
 _SENTENCE_PUNCT_RE = re.compile(r"[.!?]")
+_HASHTAG_RE = re.compile(r"#[A-Za-z0-9_]+")
+_TERMINAL_PUNCT_RE = re.compile(r"[.!?]\s*$")
 
 COMMON_ENGLISH_WORDS = frozenset(
     {
@@ -83,6 +85,31 @@ TEMPLATE_PATTERNS = (
     r"^\s*platform\s*:",
     r"^\s*audience\s*:",
     r"^\s*write a\b",
+)
+
+PLACEHOLDER_PATTERNS = (
+    r"\[(?:link|framework name|company name|product name|tool name|insert [^\]]+)\]",
+    r"\[[^\]]*(?:here|name|link|describe|explain|placeholder)[^\]]*\]",
+)
+
+ARTIFACT_PATTERNS = (
+    r"\b[A-Za-z0-9]+_[A-Za-z0-9_]*_[A-Za-z0-9_]+\b",
+    r"\b[A-Za-z0-9]+_[A-Za-z0-9_]{8,}\b",
+    r"_\s*$",
+)
+
+SELF_CORRECTION_PATTERNS = (
+    r"\blet'?s try again\b",
+    r"\bone more time\b",
+    r"\bwait,?\s+that was\b",
+    r"\bmaybe not\b",
+)
+
+UNFINISHED_TAIL_RE = re.compile(
+    r"(?:\b(?:the|a|an|to|for|of|on|in|with|and|but|or|because|that|this|"
+    r"those|these|from|by|about|into|instead|haven't|hasn't|isn't|aren't|"
+    r"doesn't|don't)\b|for user)\s*$",
+    flags=re.IGNORECASE,
 )
 
 
@@ -214,6 +241,39 @@ def repeated_phrase(completion: str, *, phrase_size: int = 5, max_count: int = 2
     return None
 
 
+def hashtag_issues(completion: str, *, max_hashtags: int = 4) -> list[QualityIssue]:
+    hashtags = _HASHTAG_RE.findall(completion)
+    issues: list[QualityIssue] = []
+    if len(hashtags) > max_hashtags:
+        issues.append(
+            QualityIssue(
+                "too_many_hashtags",
+                f"completion has {len(hashtags)} hashtags; maximum is {max_hashtags}",
+            )
+        )
+    noisy = [
+        hashtag
+        for hashtag in hashtags
+        if len(hashtag) > 32 or hashtag.count("_") > 1
+    ]
+    if noisy:
+        issues.append(
+            QualityIssue("hashtag_artifact", "completion contains malformed hashtag artifacts")
+        )
+    return issues
+
+
+def has_unfinished_tail(completion: str) -> bool:
+    stripped = completion.strip()
+    if not stripped:
+        return False
+    if _TERMINAL_PUNCT_RE.search(stripped):
+        return False
+    if _HASHTAG_RE.search(stripped.rsplit(maxsplit=1)[-1]):
+        return False
+    return bool(UNFINISHED_TAIL_RE.search(stripped))
+
+
 def evaluate_completion_quality(
     record: dict[str, Any],
     *,
@@ -302,6 +362,31 @@ def evaluate_completion_quality(
     if template_matches:
         issues.append(
             QualityIssue("template_or_code", "completion looks like a template or code block")
+        )
+
+    placeholder_matches = _matches_any(PLACEHOLDER_PATTERNS, completion)
+    if placeholder_matches:
+        issues.append(
+            QualityIssue("placeholder_text", "completion contains placeholder text")
+        )
+
+    artifact_matches = _matches_any(ARTIFACT_PATTERNS, completion)
+    if artifact_matches:
+        issues.append(
+            QualityIssue("artifact_suffix", "completion contains underscore or suffix artifacts")
+        )
+
+    self_correction_matches = _matches_any(SELF_CORRECTION_PATTERNS, completion)
+    if self_correction_matches:
+        issues.append(
+            QualityIssue("self_correction_restart", "completion restarts or critiques itself")
+        )
+
+    issues.extend(hashtag_issues(completion))
+
+    if has_unfinished_tail(completion):
+        issues.append(
+            QualityIssue("unfinished_tail", "completion appears to stop mid-thought")
         )
 
     echo = prompt_echo_score(completion, prompt)
