@@ -137,7 +137,7 @@ ARCHETYPES = [
 
 DIRECT_POST_INSTRUCTION = (
     " Return only one finished post. Do not give options, labels, headings, "
-    "explanations, or analysis."
+    "explanations, or analysis. End cleanly with normal sentence punctuation."
 )
 
 

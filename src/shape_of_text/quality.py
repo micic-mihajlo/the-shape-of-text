@@ -93,6 +93,7 @@ PLACEHOLDER_PATTERNS = (
 )
 
 ARTIFACT_PATTERNS = (
+    r"\b[A-Za-z0-9]+_[A-Za-z0-9_]+\b",
     r"\b[A-Za-z0-9]+_[A-Za-z0-9_]*_[A-Za-z0-9_]+\b",
     r"\b[A-Za-z0-9]+_[A-Za-z0-9_]{8,}\b",
     r"_\s*$",
@@ -274,6 +275,13 @@ def has_unfinished_tail(completion: str) -> bool:
     return bool(UNFINISHED_TAIL_RE.search(stripped))
 
 
+def lacks_terminal_punctuation(completion: str, *, min_words: int = 35) -> bool:
+    stripped = completion.strip()
+    if not stripped or word_count(stripped) < min_words:
+        return False
+    return _TERMINAL_PUNCT_RE.search(stripped) is None
+
+
 def evaluate_completion_quality(
     record: dict[str, Any],
     *,
@@ -387,6 +395,10 @@ def evaluate_completion_quality(
     if has_unfinished_tail(completion):
         issues.append(
             QualityIssue("unfinished_tail", "completion appears to stop mid-thought")
+        )
+    elif lacks_terminal_punctuation(completion):
+        issues.append(
+            QualityIssue("missing_terminal_punctuation", "completion does not end cleanly")
         )
 
     echo = prompt_echo_score(completion, prompt)

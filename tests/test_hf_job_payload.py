@@ -40,7 +40,7 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert "--push-to-hub" not in command
     assert "--adapter-id /workspace/runs/gemma-4-12b-it-social-post-lora-smoke" in command
     assert "scripts/generate_social_posts.py" in command
-    assert "--max-new-tokens 120" in command
+    assert "--max-new-tokens 160" in command
     assert "--repetition-penalty 1.12" in command
     assert "--no-repeat-ngram-size 5" in command
     assert "scripts/check_generation_quality.py" in command

@@ -151,6 +151,21 @@ def test_quality_rejects_placeholder_and_suffix_artifacts():
     assert "hashtag_artifact" in codes
 
 
+def test_quality_rejects_plain_underscore_artifacts():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one LinkedIn post about a model training tool.",
+            "completion": (
+                "We shipped a small fine_tuning workflow update today. It makes the "
+                "evaluation handoff easier to inspect before anyone publishes a new "
+                "adapter to the hub."
+            ),
+        }
+    )
+
+    assert "artifact_suffix" in {issue.code for issue in result.issues}
+
+
 def test_quality_rejects_too_many_hashtags():
     result = evaluate_completion_quality(
         {
@@ -194,6 +209,23 @@ def test_quality_rejects_unfinished_tail():
     )
 
     assert "unfinished_tail" in {issue.code for issue in result.issues}
+
+
+def test_quality_rejects_long_post_without_terminal_punctuation():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write one LinkedIn post.",
+            "completion": (
+                "We shipped a small update to the evaluation flow today. It gives every "
+                "adapter a visible quality report before upload, which makes broken "
+                "generations easier to catch before anyone tries the model locally. "
+                "The main win is that review happens while the context is still fresh "
+                "and the fix is still cheap"
+            ),
+        }
+    )
+
+    assert "missing_terminal_punctuation" in {issue.code for issue in result.issues}
 
 
 def test_quality_report_summarizes_failures():
