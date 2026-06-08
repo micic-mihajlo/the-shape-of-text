@@ -57,7 +57,7 @@ def validate_configs(root: Path) -> None:
     ) as handle:
         accelerate = yaml.safe_load(handle)
     layer = accelerate["fsdp_config"]["fsdp_transformer_layer_cls_to_wrap"]
-    if layer != "Gemma4TextDecoderLayer":
+    if layer != "Gemma4UnifiedTextDecoderLayer":
         raise SystemExit(f"unexpected FSDP layer class: {layer}")
 
     with (root / "configs/trainer_fsdp_qlora_gemma4_12b.json").open(

@@ -29,13 +29,13 @@ the selected host actually has multiple GPUs. The concrete launcher files are:
 The default layer class is:
 
 ```text
-Gemma4TextDecoderLayer
+Gemma4UnifiedTextDecoderLayer
 ```
 
 If the selected Hugging Face Gemma 4 checkpoint exposes a different decoder
 class, update both config files before launch. Common adjacent names in Gemma
-families are `GemmaDecoderLayer`, `Gemma2DecoderLayer`, and
-`Gemma3DecoderLayer`.
+families are `GemmaDecoderLayer`, `Gemma2DecoderLayer`,
+`Gemma3DecoderLayer`, and `Gemma4UnifiedTextDecoderLayer`.
 
 ## Low-Memory Run Order
 

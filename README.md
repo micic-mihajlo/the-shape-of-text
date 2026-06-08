@@ -110,10 +110,10 @@ accelerate launch \
   --jmq-warmup-steps 100
 ```
 
-The default FSDP auto-wrap class is `Gemma4TextDecoderLayer`, matching the text
-decoder layer used by the current Gemma 4 Transformers implementation. If the
-selected checkpoint exposes a different decoder class, update both FSDP config
-files before launching.
+The default FSDP auto-wrap class is `Gemma4UnifiedTextDecoderLayer`, matching
+the text decoder layer exposed by `google/gemma-4-12B` in Transformers 5.10. If
+the selected checkpoint exposes a different decoder class, update both FSDP
+config files before launching.
 
 The committed Accelerate config uses `num_processes: 1` so the default HF Jobs
 smoke payload matches one-GPU flavors such as `l40sx1`. For multi-GPU FSDP

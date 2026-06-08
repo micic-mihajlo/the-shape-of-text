@@ -3,6 +3,6 @@
   "backward_prefetch": "backward_pre",
   "forward_prefetch": false,
   "sync_module_states": true,
-  "transformer_layer_cls_to_wrap": "Gemma4TextDecoderLayer",
+  "transformer_layer_cls_to_wrap": "Gemma4UnifiedTextDecoderLayer",
   "use_orig_params": true
 }
