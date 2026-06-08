@@ -1,0 +1,1 @@
+{"prompt":"Write a short post for engineers about why adapter publishing should be part of the training script.","completion":"If the adapter is the artifact, publishing it should be part of the run. Train, evaluate, save, and push from one path so the handoff is repeatable instead of a manual upload at the end."}
