@@ -12,6 +12,7 @@ from shape_of_text.train import (
     AlignmentTrainer,
     CausalLMCollator,
     fsdp_uses_activation_checkpointing,
+    recast_non_quantized_params_for_fsdp,
     trainer_gradient_checkpointing_enabled,
 )
 
@@ -99,3 +100,14 @@ def test_trainer_gradient_checkpointing_respects_explicit_disable():
 
 def test_fsdp_activation_checkpointing_supports_accelerate_key():
     assert fsdp_uses_activation_checkpointing({"fsdp_activation_checkpointing": True}) is True
+
+
+def test_recast_non_quantized_params_for_fsdp_makes_float_params_uniform():
+    model = torch.nn.Module()
+    model.fp32 = torch.nn.Parameter(torch.ones(2, dtype=torch.float32))
+    model.bf16 = torch.nn.Parameter(torch.ones(2, dtype=torch.bfloat16))
+
+    recast_non_quantized_params_for_fsdp(model, torch.bfloat16)
+
+    assert model.fp32.dtype is torch.bfloat16
+    assert model.bf16.dtype is torch.bfloat16

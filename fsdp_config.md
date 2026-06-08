@@ -24,6 +24,11 @@ the selected host actually has multiple GPUs. The concrete launcher files are:
 - Backward prefetch: `BACKWARD_PRE`
 - CPU parameter offload: disabled by default
 
+The trainer recasts non-quantized floating parameters back to the configured
+model dtype for FSDP/QLoRA runs. This keeps LoRA weights, layer norms, regular
+linear weights, and 4-bit quantized storage aligned at `bf16`, which FSDP needs
+before it can shard wrapped modules.
+
 ## Transformer Layer Class
 
 The default layer class is:

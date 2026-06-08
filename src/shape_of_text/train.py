@@ -341,6 +341,14 @@ def auto_model_class(args: argparse.Namespace):
     return AutoModelForImageTextToText
 
 
+def recast_non_quantized_params_for_fsdp(model: torch.nn.Module, dtype: torch.dtype) -> None:
+    for param in model.parameters():
+        if param.__class__.__name__ == "Params4bit":
+            continue
+        if param.is_floating_point() and param.dtype != dtype:
+            param.data = param.data.to(dtype)
+
+
 def load_trainable_model(
     args: argparse.Namespace, *, use_gradient_checkpointing: bool
 ) -> torch.nn.Module:
@@ -368,7 +376,10 @@ def load_trainable_model(
         task_type="CAUSAL_LM",
         target_modules=args.lora_target_modules,
     )
-    return get_peft_model(model, lora_config)
+    model = get_peft_model(model, lora_config)
+    if args.fsdp and not args.no_4bit:
+        recast_non_quantized_params_for_fsdp(model, torch_dtype(args))
+    return model
 
 
 def load_target_model(args: argparse.Namespace) -> torch.nn.Module | None:
