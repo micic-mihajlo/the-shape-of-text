@@ -32,6 +32,26 @@ def test_quality_rejects_prompt_echo():
     assert "prompt_echo" in {issue.code for issue in result.issues}
 
 
+def test_quality_rejects_unicode_token_soup():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write a concise LinkedIn post about a small product improvement.",
+            "completion": (
+                "makeSoundлизи williams 獲 setEmail Mayıs 🧸 📎 d اfter "
+                "Josie Paston MSBuildTools immunoassay laravel vertx isother "
+                "Burkina ISNI Monika pursuance getBlue ⚜ 鮭 micronaut 氨 accidens "
+                "FileInputStream Nucleaire InnoDB KEYUP MetaMask ActionMode "
+                "wikimedia FullHD CallOptions hypothalam Serrurier Klinefelter "
+                "𒉡 रिक्वायरमेंट கட்டமை ಚೇಂಜೆಸ್ કાર્યવાહી መሳሳይ脱毛"
+            ),
+        }
+    )
+
+    codes = {issue.code for issue in result.issues}
+    assert "low_english_signal" in codes
+    assert "non_latin_noise" in codes
+
+
 def test_quality_accepts_concrete_social_post():
     result = evaluate_completion_quality(
         {
@@ -40,6 +60,21 @@ def test_quality_accepts_concrete_social_post():
                 "Small product update: the export flow now remembers your last settings. "
                 "It is not flashy, but it removes three repeated clicks from a task people "
                 "run every week. That is the kind of cleanup users actually feel."
+            ),
+        }
+    )
+
+    assert result.ok
+
+
+def test_quality_accepts_small_amount_of_social_punctuation():
+    result = evaluate_completion_quality(
+        {
+            "prompt": "Write a short post about improving onboarding.",
+            "completion": (
+                "We cleaned up onboarding today. Nothing dramatic: one fewer decision, "
+                "clearer defaults, and a setup path that gets out of the way faster. "
+                "Small fix, better first run."
             ),
         }
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any, Iterable
@@ -8,6 +9,39 @@ from typing import Any, Iterable
 
 _WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'_/-]*")
 _SPACE_RE = re.compile(r"\s+")
+_SENTENCE_PUNCT_RE = re.compile(r"[.!?]")
+
+COMMON_ENGLISH_WORDS = frozenset(
+    {
+        "a",
+        "about",
+        "and",
+        "are",
+        "as",
+        "at",
+        "but",
+        "for",
+        "from",
+        "have",
+        "in",
+        "is",
+        "it",
+        "just",
+        "not",
+        "of",
+        "on",
+        "our",
+        "that",
+        "the",
+        "this",
+        "to",
+        "today",
+        "was",
+        "we",
+        "with",
+        "you",
+    }
+)
 
 SPECIAL_TOKEN_PATTERNS = (
     r"<\|?image\|?>",
@@ -72,6 +106,10 @@ def word_count(text: str) -> int:
     return len(_WORD_RE.findall(text))
 
 
+def ascii_words(text: str) -> list[str]:
+    return [match.group(0).casefold() for match in _WORD_RE.finditer(text)]
+
+
 def prompt_echo_score(completion: str, prompt: str) -> float:
     prompt_norm = normalize_for_overlap(prompt)
     completion_norm = normalize_for_overlap(completion)
@@ -89,6 +127,43 @@ def _matches_any(patterns: Iterable[str], text: str) -> list[str]:
         for pattern in patterns
         if re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
     ]
+
+
+def _character_noise(completion: str) -> dict[str, float]:
+    visible = [char for char in completion if not char.isspace()]
+    total = len(visible)
+    if total == 0:
+        return {
+            "control_count": 0.0,
+            "non_ascii_alpha_ratio": 0.0,
+            "symbol_ratio": 0.0,
+            "unusual_ratio": 0.0,
+        }
+
+    alpha_count = 0
+    non_ascii_alpha_count = 0
+    symbol_count = 0
+    control_count = 0
+    unusual_count = 0
+    for char in visible:
+        category = unicodedata.category(char)
+        if char.isalpha():
+            alpha_count += 1
+            if not char.isascii():
+                non_ascii_alpha_count += 1
+        if category.startswith("S"):
+            symbol_count += 1
+        if category.startswith("C"):
+            control_count += 1
+        if not char.isascii() or category.startswith(("C", "S")):
+            unusual_count += 1
+
+    return {
+        "control_count": float(control_count),
+        "non_ascii_alpha_ratio": non_ascii_alpha_count / max(1, alpha_count),
+        "symbol_ratio": symbol_count / total,
+        "unusual_ratio": unusual_count / total,
+    }
 
 
 def evaluate_completion_quality(
@@ -114,6 +189,51 @@ def evaluate_completion_quality(
     if count > max_words:
         issues.append(
             QualityIssue("too_long", f"completion has {count} words; maximum is {max_words}")
+        )
+
+    words = ascii_words(completion)
+    common_word_count = sum(1 for word in words if word in COMMON_ENGLISH_WORDS)
+    min_common_words = 2 if count < 45 else 3
+    if count >= min_words and common_word_count < min_common_words:
+        issues.append(
+            QualityIssue(
+                "low_english_signal",
+                f"completion has only {common_word_count} common English connector words",
+            )
+        )
+
+    noise = _character_noise(completion)
+    if noise["control_count"] > 0:
+        issues.append(
+            QualityIssue("control_character_noise", "completion contains control characters")
+        )
+    if noise["non_ascii_alpha_ratio"] > 0.08:
+        issues.append(
+            QualityIssue(
+                "non_latin_noise",
+                f"completion has non-Latin alphabetic ratio {noise['non_ascii_alpha_ratio']:.3f}",
+            )
+        )
+    if noise["symbol_ratio"] > 0.12:
+        issues.append(
+            QualityIssue(
+                "symbol_noise",
+                f"completion has symbol ratio {noise['symbol_ratio']:.3f}",
+            )
+        )
+    if noise["unusual_ratio"] > 0.18:
+        issues.append(
+            QualityIssue(
+                "unreadable_character_mix",
+                f"completion has unusual character ratio {noise['unusual_ratio']:.3f}",
+            )
+        )
+    if count > 35 and not _SENTENCE_PUNCT_RE.search(completion):
+        issues.append(
+            QualityIssue(
+                "no_sentence_punctuation",
+                "long completion has no sentence-ending punctuation",
+            )
         )
 
     special_matches = _matches_any(SPECIAL_TOKEN_PATTERNS, completion)
