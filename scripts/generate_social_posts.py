@@ -71,11 +71,89 @@ def prompt_text(brief: dict[str, Any]) -> str:
     return "\n".join(lines).strip() + "\n\n"
 
 
+def generation_prompt(tokenizer: Any, prompt: str, *, use_chat_template: bool) -> str:
+    if not use_chat_template:
+        return prompt
+    if not hasattr(tokenizer, "apply_chat_template"):
+        raise ValueError("--use-chat-template requires a tokenizer with apply_chat_template")
+    return tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt.strip()}],
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+
+def control_token_bad_words(tokenizer: Any) -> list[list[int]]:
+    token_values = {
+        "<|image|>",
+        "<|audio|>",
+        "<|video|>",
+        "<|tool>",
+        "<tool|>",
+        "<|tool_call>",
+        "<tool_call|>",
+        "<|tool_response>",
+        "<tool_response|>",
+        "<|channel>",
+        "<channel|>",
+        "<|turn>",
+        "<turn|>",
+        "<|think|>",
+        "<|image>",
+        "<image|>",
+        "<|audio>",
+        "<audio|>",
+    }
+    for name in (
+        "image_token",
+        "audio_token",
+        "video_token",
+        "boi_token",
+        "eoi_token",
+        "boa_token",
+        "eoa_token",
+        "soc_token",
+        "eoc_token",
+        "sot_token",
+        "eot_token",
+        "stc_token",
+        "etc_token",
+        "std_token",
+        "etd_token",
+        "str_token",
+        "etr_token",
+        "think_token",
+    ):
+        value = getattr(tokenizer, name, None)
+        if isinstance(value, str):
+            token_values.add(value)
+
+    bad_words: list[list[int]] = []
+    seen: set[tuple[int, ...]] = set()
+    for token in sorted(token_values):
+        ids = tokenizer.encode(token, add_special_tokens=False)
+        if not ids:
+            continue
+        key = tuple(ids)
+        if key in seen:
+            continue
+        seen.add(key)
+        bad_words.append(list(ids))
+    return bad_words
+
+
 def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str:
     import torch
 
     with torch.no_grad():
-        inputs = tokenizer(prompt, return_tensors="pt")
+        rendered_prompt = generation_prompt(
+            tokenizer, prompt, use_chat_template=args.use_chat_template
+        )
+        inputs = tokenizer(
+            rendered_prompt,
+            return_tensors="pt",
+            add_special_tokens=not args.use_chat_template,
+        )
         device = next(model.parameters()).device
         inputs = {key: value.to(device) for key, value in inputs.items()}
         generation_kwargs = {
@@ -88,6 +166,8 @@ def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str
         if args.temperature > 0:
             generation_kwargs["temperature"] = args.temperature
             generation_kwargs["top_p"] = args.top_p
+        if args.suppress_control_tokens:
+            generation_kwargs["bad_words_ids"] = control_token_bad_words(tokenizer)
         output_ids = model.generate(**inputs, **generation_kwargs)
         generated_ids = output_ids[0, inputs["input_ids"].shape[-1] :]
         return tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
@@ -113,6 +193,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--repetition-penalty", type=float, default=1.05)
+    parser.add_argument("--use-chat-template", action="store_true")
+    parser.add_argument(
+        "--suppress-control-tokens",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument(
         "--torch-dtype",
         choices=("auto", "bfloat16", "float16", "float32"),

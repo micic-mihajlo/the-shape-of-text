@@ -19,7 +19,7 @@ company brand, private corpus, or protected identity.
   either frozen target logits or smoothed empirical human-token targets.
 - `shape_of_text.train`: Hugging Face Trainer entrypoint for Gemma-compatible
   QLoRA fine-tuning. The default loader is `AutoModelForImageTextToText`, which
-  matches the verified `google/gemma-4-12B` Hub metadata; pass
+  matches the verified Gemma 4 Hub metadata; pass
   `--model-class causal-lm` for text-only causal-LM checkpoints.
 - FSDP/QLoRA launcher configs under `configs/`.
 
@@ -162,13 +162,15 @@ Generate posts from the held-out brief file with a base model or LoRA adapter:
 
 ```bash
 python scripts/generate_social_posts.py \
-  --model-id google/gemma-4-12B \
+  --model-id google/gemma-4-12B-it \
+  --use-chat-template \
   --briefs-file configs/social_eval_briefs.jsonl \
   --output-file outputs/base_posts.jsonl
 
 python scripts/generate_social_posts.py \
-  --model-id google/gemma-4-12B \
-  --adapter-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --model-id google/gemma-4-12B-it \
+  --adapter-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
+  --use-chat-template \
   --briefs-file configs/social_eval_briefs.jsonl \
   --output-file outputs/adapter_posts.jsonl
 ```
@@ -255,27 +257,52 @@ python scripts/validate_preflight.py \
   --eval-file examples/social_instructions/validation.jsonl
 ```
 
+For the hackathon-quality social-writing run, use the original seed corpus under
+`examples/hackathon_social_instructions/`. It is generated from generic
+product/workflow topics, not scraped private posts or brand-specific data:
+
+```bash
+python scripts/build_curated_social_instructions.py \
+  --output-dir examples/hackathon_social_instructions
+
+python scripts/validate_preflight.py \
+  --train-file examples/hackathon_social_instructions/train.jsonl \
+  --eval-file examples/hackathon_social_instructions/validation.jsonl
+```
+
+Generated eval posts are blocked from upload unless
+`scripts/check_generation_quality.py` passes. The gate rejects prompt echo,
+Gemma control-token leakage, code/template output, placeholders, and basic
+length failures.
+
 To generate a Hugging Face Jobs payload:
 
 ```bash
 python scripts/build_hf_job_payload.py \
   --git-ref YOUR_COMMITTED_SHA \
   --mode preflight \
-  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
   --detach
 
 python scripts/build_hf_job_payload.py \
   --git-ref YOUR_COMMITTED_SHA \
-  --mode smoke \
-  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --mode full \
+  --train-file examples/hackathon_social_instructions/train.jsonl \
+  --eval-file examples/hackathon_social_instructions/validation.jsonl \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
+  --max-steps 180 \
+  --learning-rate 8e-5 \
+  --mmd-weight 0.01 \
+  --jmq-weight 0.01 \
+  --mmd-warmup-steps 30 \
+  --jmq-warmup-steps 30 \
   --detach
 ```
 
 By default the generated HF Jobs payload uses the committed fake examples under
-`examples/social_instructions/` so a clean remote clone can run. For a real
-quality run, pass `--train-file data/social-instructions/train.jsonl` and
-`--eval-file data/social-instructions/validation.jsonl` after preparing and
-shipping those files to the job environment.
+`examples/social_instructions/` so a clean remote clone can run a systems smoke.
+For the hackathon-quality run, pass the committed
+`examples/hackathon_social_instructions/` train and validation files.
 
 The GPU payload checks that the `HF_TOKEN` secret has Hub `repo.write` before it
 downloads Gemma or starts training. A read-only token can validate downloads but
@@ -291,12 +318,13 @@ After generation and style evaluation, write adapter report artifacts:
 
 ```bash
 python scripts/write_adapter_report.py \
-  --adapter-id micic-mihajlo/gemma-4-12b-social-post-lora \
-  --base-model google/gemma-4-12B \
-  --train-file data/social-instructions/train.jsonl \
-  --eval-file data/social-instructions/validation.jsonl \
+  --adapter-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
+  --base-model google/gemma-4-12B-it \
+  --train-file examples/hackathon_social_instructions/train.jsonl \
+  --eval-file examples/hackathon_social_instructions/validation.jsonl \
   --generated-file outputs/adapter_posts.jsonl \
   --style-report outputs/style_report.json \
   --comparison-report outputs/comparison_report.json \
+  --quality-report outputs/generation_quality_report.json \
   --output-dir outputs/adapter_report
 ```

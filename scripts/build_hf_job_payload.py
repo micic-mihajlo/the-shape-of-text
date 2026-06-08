@@ -91,6 +91,8 @@ def training_args(args: argparse.Namespace) -> list[str]:
         "--kl-eval-batches",
         str(args.kl_eval_batches),
     ]
+    if args.use_chat_template:
+        command.append("--use-chat-template")
     if args.trainer_push_to_hub:
         command.extend(
             [
@@ -182,6 +184,7 @@ PY
 def build_command(args: argparse.Namespace) -> list[str]:
     train_command = shell_join(training_args(args))
     output_dir = training_output_dir(args)
+    chat_template_arg = "  --use-chat-template \\\n" if args.use_chat_template else ""
     upload_args = [
         "python",
         "scripts/upload_hf_adapter.py",
@@ -201,13 +204,18 @@ def build_command(args: argparse.Namespace) -> list[str]:
 {train_command}
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
+{chat_template_arg}\
   --briefs-file configs/social_eval_briefs.jsonl \\
   --output-file /workspace/base_posts.jsonl
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
   --adapter-id {shlex.quote(output_dir)} \\
+{chat_template_arg}\
   --briefs-file configs/social_eval_briefs.jsonl \\
   --output-file /workspace/adapter_posts.jsonl
+python scripts/check_generation_quality.py \\
+  /workspace/adapter_posts.jsonl \\
+  --output-file /workspace/generation_quality_report.json
 python scripts/evaluate_social_style.py \\
   /workspace/adapter_posts.jsonl \\
   --target-file {shlex.quote(str(args.eval_file))} \\
@@ -226,12 +234,14 @@ python scripts/write_adapter_report.py \\
   --generated-file /workspace/adapter_posts.jsonl \\
   --style-report /workspace/style_report.json \\
   --comparison-report /workspace/comparison_report.json \\
+  --quality-report /workspace/generation_quality_report.json \\
   --output-dir /workspace/adapter_report
 cp /workspace/adapter_report/README.md {shlex.quote(output_dir)}/README.md
 cp /workspace/adapter_report/eval_summary.json {shlex.quote(output_dir)}/eval_summary.json
 cp /workspace/adapter_posts.jsonl {shlex.quote(output_dir)}/adapter_posts.jsonl
 cp /workspace/style_report.json {shlex.quote(output_dir)}/style_report.json
 cp /workspace/comparison_report.json {shlex.quote(output_dir)}/comparison_report.json
+cp /workspace/generation_quality_report.json {shlex.quote(output_dir)}/generation_quality_report.json
 {upload_command}
 """.strip()
     return ["/bin/bash", "-lc", shell]
@@ -282,8 +292,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", default=None)
     parser.add_argument("--detach", action="store_true")
     parser.add_argument("--volume", action="append", default=[])
-    parser.add_argument("--model-id", default="google/gemma-4-12B")
-    parser.add_argument("--adapter-name", default="gemma-4-12b-social-post-lora")
+    parser.add_argument("--model-id", default="google/gemma-4-12B-it")
+    parser.add_argument("--adapter-name", default="gemma-4-12b-it-social-post-lora")
     parser.add_argument("--hub-model-id", required=True)
     parser.add_argument(
         "--train-file",
@@ -309,6 +319,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mmd-warmup-steps", type=int, default=100)
     parser.add_argument("--jmq-warmup-steps", type=int, default=100)
     parser.add_argument("--kl-eval-batches", type=int, default=8)
+    parser.add_argument("--use-chat-template", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--trainer-push-to-hub", action="store_true")
     parser.add_argument("--hub-create-pr", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()

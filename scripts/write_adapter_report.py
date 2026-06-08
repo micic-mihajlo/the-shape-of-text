@@ -24,6 +24,7 @@ def count_jsonl(path: Path | None) -> int | None:
 def markdown_report(args: argparse.Namespace) -> str:
     style_report = read_json(args.style_report)
     comparison_report = read_json(args.comparison_report)
+    quality = read_json(args.quality_report)
     train_count = count_jsonl(args.train_file)
     eval_count = count_jsonl(args.eval_file)
     generated_count = count_jsonl(args.generated_file)
@@ -87,6 +88,18 @@ def markdown_report(args: argparse.Namespace) -> str:
             ]
         )
 
+    if quality:
+        lines.extend(
+            [
+                "",
+                "## Generation Quality Gate",
+                "",
+                f"- Status: `{'pass' if quality.get('ok') else 'fail'}`",
+                f"- Failed generations: `{quality.get('failed', 0)}`",
+                f"- Total generations: `{quality.get('total', 0)}`",
+            ]
+        )
+
     lines.extend(
         [
             "",
@@ -114,6 +127,7 @@ def summary_json(args: argparse.Namespace) -> dict[str, Any]:
         "generated_examples": count_jsonl(args.generated_file),
         "style_report": read_json(args.style_report),
         "comparison_report": read_json(args.comparison_report),
+        "quality_report": read_json(args.quality_report),
     }
 
 
@@ -127,6 +141,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--generated-file", type=Path, default=None)
     parser.add_argument("--style-report", type=Path, default=None)
     parser.add_argument("--comparison-report", type=Path, default=None)
+    parser.add_argument("--quality-report", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args()
 

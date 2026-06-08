@@ -13,6 +13,7 @@ from shape_of_text.train import (
     CausalLMCollator,
     fsdp_uses_activation_checkpointing,
     recast_non_quantized_params_for_fsdp,
+    tokenize_chat_instruction,
     trainer_gradient_checkpointing_enabled,
     trainer_optimizer_name,
 )
@@ -44,6 +45,16 @@ class DummyTokenizer:
         }
 
 
+class DummyChatTokenizer:
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False):
+        text = ""
+        for message in messages:
+            text += f"<{message['role']}>" + message["content"] + f"</{message['role']}>"
+        if add_generation_prompt:
+            text += "<assistant>"
+        return [ord(char) for char in text]
+
+
 def test_alignment_weight_warmup_schedule():
     trainer = object.__new__(AlignmentTrainer)
     trainer.state = SimpleNamespace(global_step=4)
@@ -57,6 +68,20 @@ def test_alignment_weight_warmup_schedule():
 
     assert trainer.alignment_loss.mmd_weight == 0.1
     assert trainer.alignment_loss.jmq_weight == 0.4
+
+
+def test_tokenize_chat_instruction_masks_prompt_prefix():
+    input_ids, attention_mask, labels = tokenize_chat_instruction(
+        DummyChatTokenizer(),
+        prompt="Write a post.",
+        completion="We shipped the small fix today.",
+        max_length=512,
+    )
+
+    first_label = next(index for index, value in enumerate(labels) if value != -100)
+    assert labels[:first_label] == [-100] * first_label
+    assert labels[first_label:] == input_ids[first_label:]
+    assert attention_mask == [1] * len(input_ids)
 
 
 def test_causal_lm_collator_pads_labels_on_right():

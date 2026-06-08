@@ -177,6 +177,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt-field", default="prompt")
     parser.add_argument("--completion-field", default="completion")
     parser.add_argument("--mask-prompt-labels", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--use-chat-template", action="store_true")
     parser.add_argument("--output-dir", default="runs/gemma4-12b-style-alignment")
     parser.add_argument("--max-length", type=int, default=2048)
     parser.add_argument("--max-steps", type=int, default=1000)
@@ -268,6 +269,66 @@ def load_text_dataset(tokenizer: AutoTokenizer, args: argparse.Namespace):
     return tokenized.map(group_texts, batched=True)
 
 
+def _chat_template_ids(
+    tokenizer: AutoTokenizer,
+    messages: list[dict[str, str]],
+    *,
+    add_generation_prompt: bool = False,
+) -> list[int]:
+    ids = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=add_generation_prompt,
+    )
+    if hasattr(ids, "tolist"):
+        ids = ids.tolist()
+    return list(ids)
+
+
+def _common_prefix_length(left: list[int], right: list[int]) -> int:
+    length = 0
+    for left_id, right_id in zip(left, right):
+        if left_id != right_id:
+            break
+        length += 1
+    return length
+
+
+def tokenize_chat_instruction(
+    tokenizer: AutoTokenizer,
+    *,
+    prompt: str,
+    completion: str,
+    max_length: int,
+) -> tuple[list[int], list[int], list[int]]:
+    if not hasattr(tokenizer, "apply_chat_template"):
+        raise ValueError("--use-chat-template requires a tokenizer with apply_chat_template")
+
+    prefix_ids = _chat_template_ids(
+        tokenizer,
+        [{"role": "user", "content": prompt}],
+        add_generation_prompt=True,
+    )
+    full_ids = _chat_template_ids(
+        tokenizer,
+        [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": completion},
+        ],
+    )
+    prompt_len = _common_prefix_length(prefix_ids, full_ids)
+    if prompt_len == 0:
+        prompt_len = min(len(prefix_ids), len(full_ids))
+
+    if len(full_ids) > max_length:
+        overflow = len(full_ids) - max_length
+        full_ids = full_ids[overflow:]
+        prompt_len = max(0, prompt_len - overflow)
+
+    labels = [-100] * prompt_len + full_ids[prompt_len:]
+    return full_ids, [1] * len(full_ids), labels[: len(full_ids)]
+
+
 def load_instruction_dataset(tokenizer: AutoTokenizer, args: argparse.Namespace):
     data_files = {"train": args.train_file}
     if args.eval_file:
@@ -279,6 +340,19 @@ def load_instruction_dataset(tokenizer: AutoTokenizer, args: argparse.Namespace)
         completion = str(example[args.completion_field]).strip()
         if not prompt or not completion:
             raise ValueError("instruction examples require non-empty prompt and completion")
+
+        if args.use_chat_template:
+            input_ids, attention_mask, labels = tokenize_chat_instruction(
+                tokenizer,
+                prompt=prompt,
+                completion=completion,
+                max_length=args.max_length,
+            )
+            return {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "labels": labels,
+            }
 
         prompt_text = prompt.rstrip() + "\n\n"
         completion_text = completion.strip() + tokenizer.eos_token

@@ -7,11 +7,13 @@ model.
 ## Inputs
 
 - Smoke/preflight: committed fake examples under `examples/social_instructions/`
-- Quality run: prepared files such as `data/social-instructions/train.jsonl`
-  and `data/social-instructions/validation.jsonl`
-- Hugging Face token with access to `google/gemma-4-12B`
+- Quality run: committed original examples under
+  `examples/hackathon_social_instructions/`, or prepared files such as
+  `data/social-instructions/train.jsonl` and
+  `data/social-instructions/validation.jsonl`
+- Hugging Face token with access to `google/gemma-4-12B-it`
 - Target adapter repo, for example:
-  `micic-mihajlo/gemma-4-12b-social-post-lora`
+  `micic-mihajlo/gemma-4-12b-it-social-post-lora`
 
 ## Local Command Shape
 
@@ -19,12 +21,13 @@ model.
 accelerate launch \
   --config_file configs/accelerate_fsdp_qlora_gemma4_12b.yaml \
   -m shape_of_text.train \
-  --model-id google/gemma-4-12B \
+  --model-id google/gemma-4-12B-it \
   --model-class image-text-to-text \
   --dataset-format instruction-jsonl \
-  --train-file data/social-instructions/train.jsonl \
-  --eval-file data/social-instructions/validation.jsonl \
+  --train-file examples/hackathon_social_instructions/train.jsonl \
+  --eval-file examples/hackathon_social_instructions/validation.jsonl \
   --output-dir runs/gemma4-12b-social-post-lora \
+  --use-chat-template \
   --fsdp "full_shard auto_wrap" \
   --fsdp-config configs/trainer_fsdp_qlora_gemma4_12b.json \
   --max-length 1024 \
@@ -74,7 +77,7 @@ python scripts/build_hf_job_payload.py \
   --mode preflight \
   --train-file examples/social_instructions/train.jsonl \
   --eval-file examples/social_instructions/validation.jsonl \
-  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
   --detach \
   > hf-preflight-job.json
 ```
@@ -94,9 +97,30 @@ python scripts/build_hf_job_payload.py \
   --mode smoke \
   --train-file examples/social_instructions/train.jsonl \
   --eval-file examples/social_instructions/validation.jsonl \
-  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
   --detach \
   > hf-smoke-job.json
+```
+
+For the first quality run, use the instruction-tuned Gemma checkpoint and the
+committed original social-writing examples:
+
+```bash
+python scripts/build_hf_job_payload.py \
+  --git-ref YOUR_COMMITTED_SHA \
+  --mode full \
+  --model-id google/gemma-4-12B-it \
+  --train-file examples/hackathon_social_instructions/train.jsonl \
+  --eval-file examples/hackathon_social_instructions/validation.jsonl \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
+  --max-steps 180 \
+  --learning-rate 8e-5 \
+  --mmd-weight 0.01 \
+  --jmq-weight 0.01 \
+  --mmd-warmup-steps 30 \
+  --jmq-warmup-steps 30 \
+  --detach \
+  > hf-quality-job.json
 ```
 
 Generate the HF Jobs payload from the committed SHA:
@@ -105,7 +129,7 @@ Generate the HF Jobs payload from the committed SHA:
 python scripts/build_hf_job_payload.py \
   --git-ref YOUR_COMMITTED_SHA \
   --mode smoke \
-  --hub-model-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
   --detach \
   > hf-smoke-job.json
 ```
@@ -121,10 +145,13 @@ The generated job command will:
 7. Generate held-out posts from `configs/social_eval_briefs.jsonl`.
 8. Run deterministic style metrics against the validation completions.
 9. Compare base-model generations against adapter generations.
-10. Write a model-card draft and `eval_summary.json` into
+10. Run `scripts/check_generation_quality.py` against adapter generations. This
+    fails the job before upload if outputs echo prompts, leak control tokens,
+    emit code/template text, or miss basic social-post length bounds.
+11. Write a model-card draft and `eval_summary.json` into
    `/workspace/adapter_report`.
-11. Copy report artifacts into the saved adapter folder.
-12. Upload the adapter folder with `scripts/upload_hf_adapter.py --create-pr`;
+12. Copy report artifacts into the saved adapter folder.
+13. Upload the adapter folder with `scripts/upload_hf_adapter.py --create-pr`;
     this works with Jobs tokens that can open Hub PRs but cannot write directly
     to `main`.
 
@@ -137,13 +164,15 @@ After the adapter is pushed, generate held-out posts:
 
 ```bash
 python scripts/generate_social_posts.py \
-  --model-id google/gemma-4-12B \
+  --model-id google/gemma-4-12B-it \
+  --use-chat-template \
   --briefs-file configs/social_eval_briefs.jsonl \
   --output-file outputs/base_posts.jsonl
 
 python scripts/generate_social_posts.py \
-  --model-id google/gemma-4-12B \
-  --adapter-id micic-mihajlo/gemma-4-12b-social-post-lora \
+  --model-id google/gemma-4-12B-it \
+  --adapter-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
+  --use-chat-template \
   --briefs-file configs/social_eval_briefs.jsonl \
   --output-file outputs/adapter_posts.jsonl
 ```
@@ -154,27 +183,32 @@ Then compare style metrics against validation completions:
 python scripts/evaluate_social_style.py \
   outputs/adapter_posts.jsonl \
   --candidate-field completion \
-  --target-file data/social-instructions/validation.jsonl \
+  --target-file examples/hackathon_social_instructions/validation.jsonl \
   --target-field completion \
   > outputs/style_report.json
 
 python scripts/compare_social_outputs.py \
   --adapter-file outputs/adapter_posts.jsonl \
   --base-file outputs/base_posts.jsonl \
-  --target-file data/social-instructions/validation.jsonl \
+  --target-file examples/hackathon_social_instructions/validation.jsonl \
   > outputs/comparison_report.json
+
+python scripts/check_generation_quality.py \
+  outputs/adapter_posts.jsonl \
+  --output-file outputs/generation_quality_report.json
 ```
 
 Write the adapter report artifacts:
 
 ```bash
 python scripts/write_adapter_report.py \
-  --adapter-id micic-mihajlo/gemma-4-12b-social-post-lora \
-  --base-model google/gemma-4-12B \
-  --train-file data/social-instructions/train.jsonl \
-  --eval-file data/social-instructions/validation.jsonl \
+  --adapter-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
+  --base-model google/gemma-4-12B-it \
+  --train-file examples/hackathon_social_instructions/train.jsonl \
+  --eval-file examples/hackathon_social_instructions/validation.jsonl \
   --generated-file outputs/adapter_posts.jsonl \
   --style-report outputs/style_report.json \
   --comparison-report outputs/comparison_report.json \
+  --quality-report outputs/generation_quality_report.json \
   --output-dir outputs/adapter_report
 ```
