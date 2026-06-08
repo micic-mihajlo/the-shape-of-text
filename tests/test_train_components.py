@@ -8,7 +8,12 @@ pytest.importorskip("peft")
 pytest.importorskip("transformers")
 
 from shape_of_text.losses import CausalLMAlignmentLoss
-from shape_of_text.train import AlignmentTrainer, CausalLMCollator
+from shape_of_text.train import (
+    AlignmentTrainer,
+    CausalLMCollator,
+    fsdp_uses_activation_checkpointing,
+    trainer_gradient_checkpointing_enabled,
+)
 
 
 class DummyTokenizer:
@@ -72,3 +77,25 @@ def test_causal_lm_collator_pads_labels_on_left():
         ]
     )
     assert batch["labels"].tolist() == [[-100, 2], [-100, 3]]
+
+
+def test_trainer_gradient_checkpointing_yields_to_fsdp_activation_checkpointing():
+    args = SimpleNamespace(no_gradient_checkpointing=False, fsdp="full_shard auto_wrap")
+
+    assert trainer_gradient_checkpointing_enabled(args, {"activation_checkpointing": True}) is False
+
+
+def test_trainer_gradient_checkpointing_stays_enabled_without_fsdp_activation_checkpointing():
+    args = SimpleNamespace(no_gradient_checkpointing=False, fsdp="full_shard auto_wrap")
+
+    assert trainer_gradient_checkpointing_enabled(args, {"activation_checkpointing": False}) is True
+
+
+def test_trainer_gradient_checkpointing_respects_explicit_disable():
+    args = SimpleNamespace(no_gradient_checkpointing=True, fsdp="")
+
+    assert trainer_gradient_checkpointing_enabled(args, None) is False
+
+
+def test_fsdp_activation_checkpointing_supports_accelerate_key():
+    assert fsdp_uses_activation_checkpointing({"fsdp_activation_checkpointing": True}) is True

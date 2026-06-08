@@ -341,7 +341,9 @@ def auto_model_class(args: argparse.Namespace):
     return AutoModelForImageTextToText
 
 
-def load_trainable_model(args: argparse.Namespace) -> torch.nn.Module:
+def load_trainable_model(
+    args: argparse.Namespace, *, use_gradient_checkpointing: bool
+) -> torch.nn.Module:
     q_config = quantization_config(not args.no_4bit)
     model_cls = auto_model_class(args)
     model = model_cls.from_pretrained(
@@ -353,9 +355,9 @@ def load_trainable_model(args: argparse.Namespace) -> torch.nn.Module:
     )
     if not args.no_4bit:
         model = prepare_model_for_kbit_training(
-            model, use_gradient_checkpointing=not args.no_gradient_checkpointing
+            model, use_gradient_checkpointing=use_gradient_checkpointing
         )
-    elif not args.no_gradient_checkpointing:
+    elif use_gradient_checkpointing:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 
     lora_config = LoraConfig(
@@ -393,7 +395,30 @@ def load_fsdp_config(path: str | None) -> dict[str, Any] | None:
         return json.load(handle)
 
 
-def build_training_arguments(args: argparse.Namespace, has_validation: bool) -> TrainingArguments:
+def fsdp_uses_activation_checkpointing(fsdp_config: dict[str, Any] | None) -> bool:
+    if not fsdp_config:
+        return False
+    return bool(
+        fsdp_config.get("activation_checkpointing")
+        or fsdp_config.get("fsdp_activation_checkpointing")
+    )
+
+
+def trainer_gradient_checkpointing_enabled(
+    args: argparse.Namespace, fsdp_config: dict[str, Any] | None
+) -> bool:
+    if args.no_gradient_checkpointing:
+        return False
+    return not bool(args.fsdp and fsdp_uses_activation_checkpointing(fsdp_config))
+
+
+def build_training_arguments(
+    args: argparse.Namespace,
+    has_validation: bool,
+    fsdp_config: dict[str, Any] | None = None,
+) -> TrainingArguments:
+    if fsdp_config is None:
+        fsdp_config = load_fsdp_config(args.fsdp_config)
     eval_value = "steps" if has_validation else "no"
     kwargs: dict[str, Any] = {
         "output_dir": args.output_dir,
@@ -402,7 +427,7 @@ def build_training_arguments(args: argparse.Namespace, has_validation: bool) -> 
         "per_device_train_batch_size": args.per_device_train_batch_size,
         "per_device_eval_batch_size": args.per_device_eval_batch_size,
         "gradient_accumulation_steps": args.gradient_accumulation_steps,
-        "gradient_checkpointing": not args.no_gradient_checkpointing,
+        "gradient_checkpointing": trainer_gradient_checkpointing_enabled(args, fsdp_config),
         "bf16": args.bf16 and torch.cuda.is_available(),
         "warmup_ratio": args.warmup_ratio,
         "logging_steps": args.logging_steps,
@@ -413,7 +438,7 @@ def build_training_arguments(args: argparse.Namespace, has_validation: bool) -> 
         "remove_unused_columns": False,
         "optim": "paged_adamw_8bit" if not args.no_4bit else "adamw_torch",
         "fsdp": args.fsdp,
-        "fsdp_config": load_fsdp_config(args.fsdp_config),
+        "fsdp_config": fsdp_config,
         "push_to_hub": args.push_to_hub,
         "hub_model_id": args.hub_model_id,
         "hub_private_repo": args.hub_private_repo,
@@ -431,7 +456,9 @@ def main() -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     dataset = load_tokenized_dataset(tokenizer, args)
-    model = load_trainable_model(args)
+    fsdp_config = load_fsdp_config(args.fsdp_config)
+    use_gradient_checkpointing = trainer_gradient_checkpointing_enabled(args, fsdp_config)
+    model = load_trainable_model(args, use_gradient_checkpointing=use_gradient_checkpointing)
     target_model = load_target_model(args)
 
     mmd_loss = MMDLoss(
@@ -451,7 +478,9 @@ def main() -> None:
         jmq_loss=jmq_loss,
     )
 
-    training_args = build_training_arguments(args, has_validation="validation" in dataset)
+    training_args = build_training_arguments(
+        args, has_validation="validation" in dataset, fsdp_config=fsdp_config
+    )
 
     trainer = AlignmentTrainer(
         model=model,
