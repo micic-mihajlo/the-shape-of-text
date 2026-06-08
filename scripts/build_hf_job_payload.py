@@ -152,6 +152,33 @@ printf '\\nREMOTE_CPU_PREFLIGHT_OK\\n'
     return ["/bin/bash", "-lc", shell]
 
 
+def hub_upload_access_check_shell() -> str:
+    return f"""
+python - <<'PY'
+import os
+from huggingface_hub import HfApi
+
+token = os.environ.get("HF_TOKEN")
+if not token:
+    raise SystemExit("HF_TOKEN is required for adapter upload")
+
+info = HfApi(token=token).whoami()
+access = info.get("auth", {{}}).get("accessToken", {{}})
+role = access.get("role")
+fine_grained = access.get("fineGrained") or {{}}
+permissions = set(fine_grained.get("global") or [])
+for scoped in fine_grained.get("scoped") or []:
+    permissions.update(scoped.get("permissions") or [])
+
+has_write = role == "write" or "repo.write" in permissions
+if not has_write:
+    raise SystemExit("HF_TOKEN must include repo.write permission for adapter upload")
+
+print("HF_UPLOAD_PERMISSION_OK")
+PY
+""".strip()
+
+
 def build_command(args: argparse.Namespace) -> list[str]:
     train_command = shell_join(training_args(args))
     output_dir = training_output_dir(args)
@@ -170,6 +197,7 @@ def build_command(args: argparse.Namespace) -> list[str]:
     upload_command = shell_join(upload_args)
     shell = f"""
 {clone_and_install_shell(args)}
+{hub_upload_access_check_shell()}
 {train_command}
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\

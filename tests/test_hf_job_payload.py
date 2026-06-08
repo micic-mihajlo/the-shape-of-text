@@ -27,6 +27,8 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert "command -v gcc" in command
     assert "build-essential" in command
     assert command.index("command -v git") < command.index("git clone")
+    assert "HF_UPLOAD_PERMISSION_OK" in command
+    assert command.index("HF_UPLOAD_PERMISSION_OK") < command.index("accelerate launch")
     assert "--max-steps 10" in command
     assert "--max-length 512" in command
     assert "--eval-steps 5" in command
@@ -116,5 +118,6 @@ def test_preflight_payload_uses_cpu_and_skips_hub_secret(monkeypatch):
     assert "python -m shape_of_text.train --help" in command
     assert "scripts/validate_preflight.py" in command
     assert "scripts/build_hf_job_payload.py" in command
+    assert "HF_UPLOAD_PERMISSION_OK" not in command
     assert "python -m pytest -q" in command
     assert "REMOTE_CPU_PREFLIGHT_OK" in command

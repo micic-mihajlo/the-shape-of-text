@@ -277,6 +277,10 @@ quality run, pass `--train-file data/social-instructions/train.jsonl` and
 `--eval-file data/social-instructions/validation.jsonl` after preparing and
 shipping those files to the job environment.
 
+The GPU payload checks that the `HF_TOKEN` secret has Hub `repo.write` before it
+downloads Gemma or starts training. A read-only token can validate downloads but
+cannot upload the adapter folder at the end.
+
 The generated GPU job trains and saves the adapter locally, evaluates generated
 posts from that saved adapter, then uploads the adapter folder with
 `scripts/upload_hf_adapter.py --create-pr`. PR-mode upload is the default

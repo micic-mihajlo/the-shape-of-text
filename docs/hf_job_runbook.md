@@ -115,15 +115,16 @@ The generated job command will:
 1. Clone this repository at a committed SHA.
 2. Install `git` and `build-essential` if the CUDA image does not include them.
 3. Install `pip install -e ".[dev]"`.
-4. Run the `accelerate launch` command above with the smoke settings.
-5. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights.
-6. Generate held-out posts from `configs/social_eval_briefs.jsonl`.
-7. Run deterministic style metrics against the validation completions.
-8. Compare base-model generations against adapter generations.
-9. Write a model-card draft and `eval_summary.json` into
+4. Check that `HF_TOKEN` exposes Hub `repo.write` before spending GPU time.
+5. Run the `accelerate launch` command above with the smoke settings.
+6. Pass `HF_TOKEN` as a secret so the job can read gated Gemma weights.
+7. Generate held-out posts from `configs/social_eval_briefs.jsonl`.
+8. Run deterministic style metrics against the validation completions.
+9. Compare base-model generations against adapter generations.
+10. Write a model-card draft and `eval_summary.json` into
    `/workspace/adapter_report`.
-10. Copy report artifacts into the saved adapter folder.
-11. Upload the adapter folder with `scripts/upload_hf_adapter.py --create-pr`;
+11. Copy report artifacts into the saved adapter folder.
+12. Upload the adapter folder with `scripts/upload_hf_adapter.py --create-pr`;
     this works with Jobs tokens that can open Hub PRs but cannot write directly
     to `main`.
 
