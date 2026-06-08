@@ -224,7 +224,12 @@ python scripts/generate_social_posts.py \\
   --output-file /workspace/adapter_posts.jsonl
 python scripts/check_generation_quality.py \\
   /workspace/adapter_posts.jsonl \\
-  --output-file /workspace/generation_quality_report.json
+  --output-file /workspace/generation_quality_report.json || {{
+    echo "ADAPTER_POSTS_JSONL_BEGIN"
+    cat /workspace/adapter_posts.jsonl
+    echo "ADAPTER_POSTS_JSONL_END"
+    exit 1
+  }}
 python scripts/evaluate_social_style.py \\
   /workspace/adapter_posts.jsonl \\
   --target-file {shlex.quote(str(args.eval_file))} \\

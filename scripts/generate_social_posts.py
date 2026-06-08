@@ -126,6 +126,12 @@ def control_token_bad_words(
         "_",
         "[",
         "]",
+        "[Link]",
+        "[link]",
+        "[LINK]",
+        "[URL]",
+        "[url]",
+        "[link here]",
     }
     for name in (
         "image_token",

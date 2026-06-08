@@ -22,6 +22,7 @@ class FakeGemmaTokenizer:
             "_": [236779],
             "[": [123],
             "]": [124],
+            "[Link]": [900],
         }.get(token, [])
 
 
@@ -64,3 +65,4 @@ def test_generation_allows_gemma_turn_token_as_stop_token():
     assert [236779] in bad_words
     assert [123] in bad_words
     assert [124] in bad_words
+    assert [900] in bad_words

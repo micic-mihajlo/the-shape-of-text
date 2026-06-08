@@ -46,6 +46,8 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert "--repetition-penalty 1.12" in command
     assert "--no-repeat-ngram-size 5" in command
     assert "scripts/check_generation_quality.py" in command
+    assert "ADAPTER_POSTS_JSONL_BEGIN" in command
+    assert "cat /workspace/adapter_posts.jsonl" in command
     assert "generation_quality_report.json" in command
     assert "base_posts.jsonl" in command
     assert "adapter_posts.jsonl" in command
