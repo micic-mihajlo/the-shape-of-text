@@ -66,6 +66,17 @@ class DummyStringChatTokenizer(DummyChatTokenizer):
         return {"input_ids": [ord(char) for char in text]}
 
 
+class DummyDictStringChatTokenizer(DummyStringChatTokenizer):
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False):
+        return {
+            "input_ids": super().apply_chat_template(
+                messages,
+                tokenize=tokenize,
+                add_generation_prompt=add_generation_prompt,
+            )
+        }
+
+
 def test_alignment_weight_warmup_schedule():
     trainer = object.__new__(AlignmentTrainer)
     trainer.state = SimpleNamespace(global_step=4)
@@ -98,6 +109,18 @@ def test_tokenize_chat_instruction_masks_prompt_prefix():
 def test_tokenize_chat_instruction_handles_string_chat_template_return():
     input_ids, _, labels = tokenize_chat_instruction(
         DummyStringChatTokenizer(),
+        prompt="Write a post.",
+        completion="We shipped the small fix today.",
+        max_length=512,
+    )
+
+    assert all(isinstance(token_id, int) for token_id in input_ids)
+    assert any(label != -100 for label in labels)
+
+
+def test_tokenize_chat_instruction_handles_dict_string_chat_template_return():
+    input_ids, _, labels = tokenize_chat_instruction(
+        DummyDictStringChatTokenizer(),
         prompt="Write a post.",
         completion="We shipped the small fix today.",
         max_length=512,

@@ -280,12 +280,16 @@ def _chat_template_ids(
         tokenize=True,
         add_generation_prompt=add_generation_prompt,
     )
-    if isinstance(ids, str):
-        ids = tokenizer(ids, add_special_tokens=False)["input_ids"]
     if isinstance(ids, dict):
         ids = ids["input_ids"]
+    if isinstance(ids, str):
+        ids = tokenizer(ids, add_special_tokens=False)["input_ids"]
     if hasattr(ids, "tolist"):
         ids = ids.tolist()
+    if ids and isinstance(ids[0], list):
+        if len(ids) != 1:
+            raise ValueError("chat template tokenization returned multiple sequences")
+        ids = ids[0]
     return list(ids)
 
 
