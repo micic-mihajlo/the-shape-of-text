@@ -9,9 +9,15 @@ from huggingface_hub import HfApi
 from huggingface_hub.errors import HfHubHTTPError
 
 
-def ensure_model_repo(api: HfApi, repo_id: str, *, private: bool) -> None:
+def ensure_model_repo(api: HfApi, repo_id: str, *, private: bool, token: str) -> None:
     try:
-        api.create_repo(repo_id=repo_id, repo_type="model", private=private, exist_ok=True)
+        api.create_repo(
+            repo_id=repo_id,
+            repo_type="model",
+            private=private,
+            exist_ok=True,
+            token=token,
+        )
         return
     except HfHubHTTPError as exc:
         message = str(exc)
@@ -20,7 +26,7 @@ def ensure_model_repo(api: HfApi, repo_id: str, *, private: bool) -> None:
         # Some Hugging Face Jobs tokens can open PRs but cannot create repos or
         # commit directly to main. If the repo already exists, keep going and
         # let upload_folder(create_pr=True) handle the write path.
-        api.model_info(repo_id)
+        api.model_info(repo_id, token=token)
 
 
 def upload_adapter(args: argparse.Namespace):
@@ -31,13 +37,14 @@ def upload_adapter(args: argparse.Namespace):
         raise FileNotFoundError(args.folder)
 
     api = HfApi(token=token)
-    ensure_model_repo(api, args.repo_id, private=args.private)
+    ensure_model_repo(api, args.repo_id, private=args.private, token=token)
     return api.upload_folder(
         folder_path=str(args.folder),
         repo_id=args.repo_id,
         repo_type="model",
         commit_message=args.commit_message,
         create_pr=args.create_pr,
+        token=token,
     )
 
 
