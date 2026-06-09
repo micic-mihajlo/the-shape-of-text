@@ -56,6 +56,8 @@ if hasattr(merged, "model") and hasattr(merged.model, "language_model"):
     if hasattr(merged, "lm_head"):
         text_model.lm_head = merged.lm_head
     text_model.config.architectures = ["Gemma4ForCausalLM"]
+    text_model.config.tie_word_embeddings = True
+    text_model._tied_weights_keys = {{"lm_head.weight": "embed_tokens.weight"}}
 else:
     text_model = merged
 
