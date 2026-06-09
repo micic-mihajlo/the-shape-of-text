@@ -49,7 +49,7 @@ def test_generation_defaults_are_bounded_for_social_posts(monkeypatch):
     assert args.max_new_tokens == 220
     assert args.temperature == 0.0
     assert args.top_p == 0.85
-    assert args.repetition_penalty == 1.12
+    assert args.repetition_penalty == 1.0
     assert args.no_repeat_ngram_size == 5
 
 

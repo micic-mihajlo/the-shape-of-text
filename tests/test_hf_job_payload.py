@@ -43,7 +43,7 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert "--max-new-tokens 220" in command
     assert "--temperature 0.0" in command
     assert "--top-p 0.85" in command
-    assert "--repetition-penalty 1.12" in command
+    assert "--repetition-penalty 1.0" in command
     assert "--no-repeat-ngram-size 5" in command
     assert "--briefs-file configs/social_eval_briefs.jsonl" in command
     assert "scripts/check_generation_quality.py" in command

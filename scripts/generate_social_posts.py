@@ -256,7 +256,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-new-tokens", type=int, default=220)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top-p", type=float, default=0.85)
-    parser.add_argument("--repetition-penalty", type=float, default=1.12)
+    parser.add_argument("--repetition-penalty", type=float, default=1.0)
     parser.add_argument("--no-repeat-ngram-size", type=int, default=5)
     parser.add_argument("--use-chat-template", action="store_true")
     parser.add_argument(

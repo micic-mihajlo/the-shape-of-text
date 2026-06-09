@@ -13,7 +13,7 @@ GENERATION_EVAL_ARGS = (
     "  --max-new-tokens 220 \\\n"
     "  --temperature 0.0 \\\n"
     "  --top-p 0.85 \\\n"
-    "  --repetition-penalty 1.12 \\\n"
+    "  --repetition-penalty 1.0 \\\n"
     "  --no-repeat-ngram-size 5 \\\n"
 )
 
