@@ -28,6 +28,8 @@ def test_gguf_conversion_payload_merges_quantizes_and_uploads(monkeypatch):
     assert "merge_and_unload" in command
     assert "language_model" in command
     assert 'text_model._tied_weights_keys = {"lm_head.weight": "embed_tokens.weight"}' in command
+    assert 'config["architectures"] = ["Gemma4ForCausalLM"]' in command
+    assert 'config["text_config"]["architectures"] = ["Gemma4ForCausalLM"]' in command
     assert "/workspace/llama.cpp/requirements.txt" not in command
     assert "requirements-convert_legacy_llama.txt" in command
     assert "convert_hf_to_gguf.py" in command

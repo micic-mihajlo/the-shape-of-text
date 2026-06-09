@@ -63,6 +63,12 @@ else:
 
 output_dir.mkdir(parents=True, exist_ok=True)
 text_model.save_pretrained(output_dir, safe_serialization=True, max_shard_size="4GB")
+config_path = output_dir / "config.json"
+config = json.loads(config_path.read_text(encoding="utf-8"))
+config["architectures"] = ["Gemma4ForCausalLM"]
+if isinstance(config.get("text_config"), dict):
+    config["text_config"]["architectures"] = ["Gemma4ForCausalLM"]
+config_path.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
 tokenizer = AutoTokenizer.from_pretrained(base_model, token=token, use_fast=True)
 tokenizer.save_pretrained(output_dir)
 
