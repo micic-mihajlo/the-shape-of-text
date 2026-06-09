@@ -84,6 +84,18 @@ if isinstance(config.get("text_config"), dict):
 config_path.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
 tokenizer = AutoTokenizer.from_pretrained(base_model, token=token, use_fast=True)
 tokenizer.save_pretrained(output_dir)
+tokenizer_config_path = output_dir / "tokenizer_config.json"
+tokenizer_config = json.loads(tokenizer_config_path.read_text(encoding="utf-8"))
+extra_special_tokens = tokenizer_config.get("extra_special_tokens")
+if isinstance(extra_special_tokens, list):
+    tokenizer_config["extra_special_tokens"] = {{
+        "video_token" if token_text == "<|video|>" else f"extra_special_token_{{index}}": token_text
+        for index, token_text in enumerate(extra_special_tokens)
+    }}
+    tokenizer_config_path.write_text(
+        json.dumps(tokenizer_config, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
 manifest = {{
     "base_model": base_model,
