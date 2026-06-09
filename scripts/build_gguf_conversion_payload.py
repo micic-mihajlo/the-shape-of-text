@@ -21,7 +21,6 @@ python -m pip install -U pip
 python -m pip install -U "huggingface_hub[hf_xet]" transformers accelerate peft safetensors sentencepiece protobuf
 rm -rf /workspace/llama.cpp /workspace/merged-text
 git clone --depth 1 https://github.com/ggml-org/llama.cpp /workspace/llama.cpp
-python -m pip install -r /workspace/llama.cpp/requirements.txt
 python - <<'PY'
 import json
 import os
@@ -74,6 +73,7 @@ manifest = {{
 (output_dir / "merge_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 print("MERGE_OK")
 PY
+python -m pip install -r /workspace/llama.cpp/requirements/requirements-convert_legacy_llama.txt
 cmake -S /workspace/llama.cpp -B /workspace/llama.cpp/build -DLLAMA_CURL=OFF -G Ninja
 cmake --build /workspace/llama.cpp/build --target llama-quantize -j 2
 python /workspace/llama.cpp/convert_hf_to_gguf.py /workspace/merged-text \\
