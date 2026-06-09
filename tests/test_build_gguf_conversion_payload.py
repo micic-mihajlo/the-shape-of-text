@@ -25,6 +25,8 @@ def test_gguf_conversion_payload_merges_quantizes_and_uploads(monkeypatch):
     assert "revision=adapter_revision" in command
     assert '"adapter_revision": adapter_revision' in command
     assert "abc123" in command
+    assert "LLAMA_CPP_GEMMA4_TEXT_MAPPING_PATCH_OK" in command
+    assert '"layers.{bid}.layer_scalar", # extracted gemma4 text' in command
     assert "merge_and_unload" in command
     assert "language_model" in command
     assert 'text_model._tied_weights_keys = {"lm_head.weight": "embed_tokens.weight"}' in command

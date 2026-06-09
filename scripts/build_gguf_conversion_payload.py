@@ -22,6 +22,19 @@ python -m pip install -U "huggingface_hub[hf_xet]" transformers accelerate peft 
 rm -rf /workspace/llama.cpp /workspace/merged-text
 git clone --depth 1 https://github.com/ggml-org/llama.cpp /workspace/llama.cpp
 python - <<'PY'
+from pathlib import Path
+
+mapping_path = Path("/workspace/llama.cpp/gguf-py/gguf/tensor_mapping.py")
+mapping_text = mapping_path.read_text(encoding="utf-8")
+needle = '        MODEL_TENSOR.LAYER_OUT_SCALE: (\\n            "model.layers.{{bid}}.layer_scalar", # gemma4\\n'
+replacement = needle + '            "layers.{{bid}}.layer_scalar", # extracted gemma4 text\\n'
+if needle not in mapping_text:
+    raise RuntimeError("Gemma4 layer_scalar mapping anchor not found")
+if '            "layers.{{bid}}.layer_scalar", # extracted gemma4 text\\n' not in mapping_text:
+    mapping_path.write_text(mapping_text.replace(needle, replacement), encoding="utf-8")
+print("LLAMA_CPP_GEMMA4_TEXT_MAPPING_PATCH_OK")
+PY
+python - <<'PY'
 import json
 import os
 from pathlib import Path
