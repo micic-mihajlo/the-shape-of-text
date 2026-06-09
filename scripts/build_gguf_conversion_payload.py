@@ -34,6 +34,7 @@ from transformers import AutoModelForImageTextToText, AutoTokenizer
 
 base_model = {args.base_model!r}
 adapter_model = {args.adapter_model!r}
+adapter_revision = {args.adapter_revision!r}
 output_dir = Path("/workspace/merged-text")
 token = os.environ["HF_TOKEN"]
 
@@ -43,7 +44,12 @@ base = AutoModelForImageTextToText.from_pretrained(
     device_map="auto",
     token=token,
 )
-model = PeftModel.from_pretrained(base, adapter_model, token=token)
+model = PeftModel.from_pretrained(
+    base,
+    adapter_model,
+    revision=adapter_revision,
+    token=token,
+)
 merged = model.merge_and_unload()
 
 if hasattr(merged, "model") and hasattr(merged.model, "language_model"):
@@ -62,6 +68,7 @@ tokenizer.save_pretrained(output_dir)
 manifest = {{
     "base_model": base_model,
     "adapter_model": adapter_model,
+    "adapter_revision": adapter_revision,
     "merged_text_dir": str(output_dir),
 }}
 (output_dir / "merge_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -89,6 +96,7 @@ from huggingface_hub import HfApi, create_repo
 repo_id = {args.hub_model_id!r}
 base_model = {args.base_model!r}
 adapter_model = {args.adapter_model!r}
+adapter_revision = {args.adapter_revision!r}
 quantization = {args.quantization!r}
 gguf_path = Path("/workspace") / {gguf_filename!r}
 token = os.environ["HF_TOKEN"]
@@ -97,6 +105,7 @@ sha = hashlib.sha256(gguf_path.read_bytes()).hexdigest()
 manifest = {{
     "base_model": base_model,
     "adapter_model": adapter_model,
+    "adapter_revision": adapter_revision,
     "format": "GGUF",
     "quantization": quantization,
     "gguf_file": gguf_path.name,
@@ -129,9 +138,12 @@ tags:
 
 GGUF export for `{{adapter_model}}` merged into `{{base_model}}`.
 
+Adapter revision: `{{adapter_revision}}`
+
 Use `{{gguf_name}}` in LM Studio or llama.cpp.
 '''.format(
     adapter_model=adapter_model,
+    adapter_revision=adapter_revision,
     base_model=base_model,
     gguf_name=gguf_path.name,
     quantization_lower=quantization.lower(),
@@ -188,6 +200,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a GGUF conversion HF Jobs payload")
     parser.add_argument("--base-model", default="google/gemma-4-12B-it")
     parser.add_argument("--adapter-model", required=True)
+    parser.add_argument("--adapter-revision", default=None)
     parser.add_argument("--hub-model-id", required=True)
     parser.add_argument("--output-name", default="gemma-4-12b-it-social-post-lora")
     parser.add_argument("--quantization", default="Q4_K_M")

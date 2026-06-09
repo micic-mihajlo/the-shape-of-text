@@ -8,6 +8,8 @@ def test_gguf_conversion_payload_merges_quantizes_and_uploads(monkeypatch):
             "build_gguf_conversion_payload.py",
             "--adapter-model",
             "micic-mihajlo/adapter",
+            "--adapter-revision",
+            "abc123",
             "--hub-model-id",
             "micic-mihajlo/adapter-GGUF",
             "--detach",
@@ -20,6 +22,9 @@ def test_gguf_conversion_payload_merges_quantizes_and_uploads(monkeypatch):
     assert payload["operation"] == "run"
     assert payload["args"]["secrets"] == {"HF_TOKEN": "$HF_TOKEN"}
     assert "PeftModel.from_pretrained" in command
+    assert "revision=adapter_revision" in command
+    assert '"adapter_revision": adapter_revision' in command
+    assert "abc123" in command
     assert "merge_and_unload" in command
     assert "language_model" in command
     assert "convert_hf_to_gguf.py" in command
