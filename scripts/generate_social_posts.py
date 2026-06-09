@@ -68,6 +68,11 @@ def prompt_text(brief: dict[str, Any]) -> str:
     if audience:
         lines.append(f"Audience: {audience}")
     lines.append(str(brief["prompt"]).strip())
+    required_terms = brief.get("required_terms") or brief.get("anchors")
+    if isinstance(required_terms, list) and required_terms:
+        anchors = ", ".join(str(term).strip() for term in required_terms if str(term).strip())
+        if anchors:
+            lines.append(f"Must include these exact strings: {anchors}.")
     return "\n".join(lines).strip() + "\n\n"
 
 

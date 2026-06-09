@@ -41,6 +41,17 @@ def test_prompt_text_includes_platform_audience_and_prompt():
     assert prompt.endswith("\n\n")
 
 
+def test_prompt_text_appends_required_exact_strings():
+    prompt = prompt_text(
+        {
+            "prompt": "Rewrite this launch note.",
+            "required_terms": ["Rivet", "2,300", "AI-generated code"],
+        }
+    )
+
+    assert "Must include these exact strings: Rivet, 2,300, AI-generated code." in prompt
+
+
 def test_generation_defaults_are_bounded_for_social_posts(monkeypatch):
     monkeypatch.setattr("sys.argv", ["generate_social_posts.py"])
 

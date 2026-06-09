@@ -10,6 +10,7 @@ def test_founder_rewrite_examples_are_targeted_and_pass_quality_gate():
     assert {example["style_family"] for example in examples} == {"founder_rewrite"}
     assert all(example["required_terms"] for example in examples)
     assert all("Rough draft:" in example["prompt"] for example in examples)
+    assert all("Must include these exact strings:" in example["prompt"] for example in examples)
 
     report = founder_rewrite_quality_report(examples)
     assert report["ok"] is True

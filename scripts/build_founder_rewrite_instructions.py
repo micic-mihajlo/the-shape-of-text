@@ -464,7 +464,7 @@ def prompt_for(seed: dict[str, Any], variant: str) -> str:
     return (
         f"{variant}\n\n"
         f"Rough draft:\n{seed['source_draft']}\n\n"
-        f"Keep these anchors: {required}.\n"
+        f"Must include these exact strings: {required}.\n"
         f"Avoid these phrases and their cadence: {avoid}.\n"
         f"{DIRECT_REWRITE_INSTRUCTION}"
     )
