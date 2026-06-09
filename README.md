@@ -299,6 +299,47 @@ python scripts/check_founder_rewrite_quality.py \
   --output-file outputs/founder_rewrite_quality_report.json
 ```
 
+On Apple Silicon, the same founder-rewrite corpus can be trained locally with
+MLX when Hugging Face Jobs credits are unavailable. This is a local fallback for
+producing an on-machine adapter; the CUDA/FSDP path above remains the primary
+distributed-training route.
+
+```bash
+python -m pip install -e ".[mlx]"
+
+python scripts/prepare_mlx_lora_data.py \
+  --train-file examples/founder_rewrite_instructions/train.jsonl \
+  --valid-file examples/founder_rewrite_instructions/validation.jsonl \
+  --output-dir outputs/mlx_founder_rewrite_data
+
+python -m mlx_lm lora \
+  --model mlx-community/gemma-4-12B-it-4bit \
+  --train \
+  --data outputs/mlx_founder_rewrite_data \
+  --adapter-path outputs/mlx_founder_rewrite_lora \
+  --mask-prompt \
+  --batch-size 1 \
+  --grad-accumulation-steps 8 \
+  --iters 110 \
+  --learning-rate 3e-5 \
+  --steps-per-report 10 \
+  --steps-per-eval 55 \
+  --save-every 55 \
+  --num-layers 16 \
+  --max-seq-length 1024 \
+  --grad-checkpoint
+
+python scripts/generate_mlx_social_posts.py \
+  --model-id mlx-community/gemma-4-12B-it-4bit \
+  --adapter-path outputs/mlx_founder_rewrite_lora \
+  --briefs-file configs/founder_rewrite_eval_briefs.jsonl \
+  --output-file outputs/mlx_adapter_posts.jsonl
+
+python scripts/check_founder_rewrite_quality.py \
+  outputs/mlx_adapter_posts.jsonl \
+  --output-file outputs/mlx_generation_quality_report.json
+```
+
 To generate a Hugging Face Jobs payload:
 
 ```bash
