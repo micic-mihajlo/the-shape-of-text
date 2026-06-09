@@ -37,6 +37,36 @@ def test_founder_rewrite_rejects_missing_required_anchor():
     assert "missing_required_anchor" in {issue.code for issue in result.issues}
 
 
+def test_founder_rewrite_matches_numeric_anchors_without_false_substrings():
+    comma_result = evaluate_founder_rewrite_quality(
+        {
+            "prompt": "Rewrite this post.",
+            "required_terms": ["2,300 creators", "14%"],
+            "completion": (
+                "The creator tool now has 2300 creators using it.\n\n"
+                "The pricing page changed too, and signups increased 14% after the "
+                "free plan became obvious."
+            ),
+        }
+    )
+    false_substring_result = evaluate_founder_rewrite_quality(
+        {
+            "prompt": "Rewrite this post.",
+            "required_terms": ["2,300 creators", "14%"],
+            "completion": (
+                "The creator tool now has 2310 creators using it.\n\n"
+                "The pricing page changed too, and signups increased 114% after the "
+                "free plan became obvious."
+            ),
+        }
+    )
+
+    assert "missing_required_anchor" not in {issue.code for issue in comma_result.issues}
+    assert "missing_required_anchor" in {
+        issue.code for issue in false_substring_result.issues
+    }
+
+
 def test_founder_rewrite_rejects_forbidden_terms_with_avoid_terms():
     result = evaluate_founder_rewrite_quality(
         {

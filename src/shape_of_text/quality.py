@@ -331,12 +331,32 @@ def _compact_normalized(text: str) -> str:
     return re.sub(r"\s+", "", normalize_for_overlap(text))
 
 
+def _normalized_term_variants(term: str) -> list[str]:
+    variants = [term]
+    numeric_commas_removed = re.sub(r"(?<=\d),(?=\d)", "", term)
+    if numeric_commas_removed != term:
+        variants.append(numeric_commas_removed)
+    normalized = []
+    for variant in variants:
+        value = normalize_for_overlap(variant)
+        if value and value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
+def _contains_normalized_phrase(text_norm: str, phrase_norm: str) -> bool:
+    return re.search(
+        rf"(?<![a-z0-9]){re.escape(phrase_norm)}(?![a-z0-9])",
+        text_norm,
+    ) is not None
+
+
 def _term_present(text: str, term: str) -> bool:
-    term_norm = normalize_for_overlap(term)
-    if not term_norm:
+    variants = _normalized_term_variants(term)
+    if not variants:
         return True
     text_norm = normalize_for_overlap(text)
-    return term_norm in text_norm or _compact_normalized(term) in _compact_normalized(text)
+    return any(_contains_normalized_phrase(text_norm, variant) for variant in variants)
 
 
 def _nonempty_lines(text: str) -> list[str]:
