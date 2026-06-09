@@ -45,6 +45,7 @@ def test_hf_job_payload_contains_smoke_training_and_eval_command(monkeypatch):
     assert "--top-p 0.85" in command
     assert "--repetition-penalty 1.12" in command
     assert "--no-repeat-ngram-size 5" in command
+    assert "--briefs-file configs/social_eval_briefs.jsonl" in command
     assert "scripts/check_generation_quality.py" in command
     assert "ADAPTER_POSTS_JSONL_BEGIN" in command
     assert "cat /workspace/adapter_posts.jsonl" in command
@@ -101,6 +102,28 @@ def test_payload_defaults_to_committed_example_data(monkeypatch):
     command = "\n".join(payload["args"]["command"])
     assert "--train-file examples/social_instructions/train.jsonl" in command
     assert "--eval-file examples/social_instructions/validation.jsonl" in command
+    assert "--briefs-file configs/social_eval_briefs.jsonl" in command
+
+
+def test_payload_accepts_custom_generation_profile(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "build_hf_job_payload.py",
+            "--git-ref",
+            "abc123",
+            "--hub-model-id",
+            "micic-mihajlo/adapter",
+            "--briefs-file",
+            "configs/founder_rewrite_eval_briefs.jsonl",
+            "--quality-script",
+            "scripts/check_founder_rewrite_quality.py",
+        ],
+    )
+    payload = build_payload(parse_args())
+    command = "\n".join(payload["args"]["command"])
+    assert "--briefs-file configs/founder_rewrite_eval_briefs.jsonl" in command
+    assert "python scripts/check_founder_rewrite_quality.py" in command
 
 
 def test_preflight_payload_uses_cpu_and_skips_hub_secret(monkeypatch):
@@ -128,6 +151,7 @@ def test_preflight_payload_uses_cpu_and_skips_hub_secret(monkeypatch):
     assert "gcc --version" in command
     assert "python -m shape_of_text.train --help" in command
     assert "scripts/validate_preflight.py" in command
+    assert "--briefs-file configs/social_eval_briefs.jsonl" in command
     assert "scripts/build_hf_job_payload.py" in command
     assert "HF_UPLOAD_PERMISSION_OK" not in command
     assert "python -m pytest -q" in command

@@ -141,6 +141,10 @@ def build_preflight_command(args: argparse.Namespace) -> list[str]:
             str(args.train_file),
             "--eval-file",
             str(args.eval_file),
+            "--briefs-file",
+            str(args.briefs_file),
+            "--quality-script",
+            str(args.quality_script),
             "--hub-model-id",
             args.hub_model_id,
             "--detach",
@@ -152,7 +156,8 @@ gcc --version >/tmp/gcc_version.txt
 python -m shape_of_text.train --help >/tmp/train_help.txt
 python scripts/validate_preflight.py \\
   --train-file {shlex.quote(str(args.train_file))} \\
-  --eval-file {shlex.quote(str(args.eval_file))}
+  --eval-file {shlex.quote(str(args.eval_file))} \\
+  --briefs-file {shlex.quote(str(args.briefs_file))}
 {payload_command} >/tmp/hf_payload.json
 python -m json.tool /tmp/hf_payload.json >/dev/null
 python -m pytest -q
@@ -213,16 +218,16 @@ python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
 {chat_template_arg}\
 {GENERATION_EVAL_ARGS}\
-  --briefs-file configs/social_eval_briefs.jsonl \\
+  --briefs-file {shlex.quote(str(args.briefs_file))} \\
   --output-file /workspace/base_posts.jsonl
 python scripts/generate_social_posts.py \\
   --model-id {shlex.quote(args.model_id)} \\
   --adapter-id {shlex.quote(output_dir)} \\
 {chat_template_arg}\
 {GENERATION_EVAL_ARGS}\
-  --briefs-file configs/social_eval_briefs.jsonl \\
+  --briefs-file {shlex.quote(str(args.briefs_file))} \\
   --output-file /workspace/adapter_posts.jsonl
-python scripts/check_generation_quality.py \\
+python {shlex.quote(str(args.quality_script))} \\
   /workspace/adapter_posts.jsonl \\
   --output-file /workspace/generation_quality_report.json || {{
     echo "ADAPTER_POSTS_JSONL_BEGIN"
@@ -318,6 +323,16 @@ def parse_args() -> argparse.Namespace:
         "--eval-file",
         type=Path,
         default=Path("examples/social_instructions/validation.jsonl"),
+    )
+    parser.add_argument(
+        "--briefs-file",
+        type=Path,
+        default=Path("configs/social_eval_briefs.jsonl"),
+    )
+    parser.add_argument(
+        "--quality-script",
+        type=Path,
+        default=Path("scripts/check_generation_quality.py"),
     )
     parser.add_argument("--max-steps", type=int, default=1000)
     parser.add_argument("--max-length", type=int, default=1024)

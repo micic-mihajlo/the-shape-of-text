@@ -275,6 +275,30 @@ Generated eval posts are blocked from upload unless
 Gemma control-token leakage, code/template output, placeholders, and basic
 length failures.
 
+For the stricter founder-rewrite target, use the no-slop rewrite corpus and
+held-out rewrite briefs:
+
+```bash
+python scripts/build_founder_rewrite_instructions.py \
+  --output-dir examples/founder_rewrite_instructions
+
+python scripts/validate_preflight.py \
+  --train-file examples/founder_rewrite_instructions/train.jsonl \
+  --eval-file examples/founder_rewrite_instructions/validation.jsonl \
+  --briefs-file configs/founder_rewrite_eval_briefs.jsonl
+```
+
+That profile trains on rough-draft-to-finished-post pairs and carries required
+anchor terms through generation. The founder quality gate rejects assistant
+prefaces, generic product-update filler, missing anchors, dense single-block
+posts, and long posts without any short emphasis line:
+
+```bash
+python scripts/check_founder_rewrite_quality.py \
+  outputs/adapter_posts.jsonl \
+  --output-file outputs/founder_rewrite_quality_report.json
+```
+
 To generate a Hugging Face Jobs payload:
 
 ```bash
@@ -291,6 +315,23 @@ python scripts/build_hf_job_payload.py \
   --eval-file examples/hackathon_social_instructions/validation.jsonl \
   --hub-model-id micic-mihajlo/gemma-4-12b-it-social-post-lora \
   --max-steps 180 \
+  --learning-rate 8e-5 \
+  --mmd-weight 0.01 \
+  --jmq-weight 0.01 \
+  --mmd-warmup-steps 30 \
+  --jmq-warmup-steps 30 \
+  --detach
+
+python scripts/build_hf_job_payload.py \
+  --git-ref YOUR_COMMITTED_SHA \
+  --mode full \
+  --adapter-name gemma-4-12b-it-founder-rewrite-lora \
+  --train-file examples/founder_rewrite_instructions/train.jsonl \
+  --eval-file examples/founder_rewrite_instructions/validation.jsonl \
+  --briefs-file configs/founder_rewrite_eval_briefs.jsonl \
+  --quality-script scripts/check_founder_rewrite_quality.py \
+  --hub-model-id micic-mihajlo/gemma-4-12b-it-founder-rewrite-lora \
+  --max-steps 300 \
   --learning-rate 8e-5 \
   --mmd-weight 0.01 \
   --jmq-weight 0.01 \

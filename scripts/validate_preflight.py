@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--train-file", type=Path, default=None)
     parser.add_argument("--eval-file", type=Path, default=None)
+    parser.add_argument(
+        "--briefs-file",
+        type=Path,
+        default=Path("configs/social_eval_briefs.jsonl"),
+    )
     parser.add_argument("--adapter-dir", type=Path, default=None)
     parser.add_argument("--min-eval-briefs", type=int, default=10)
     return parser.parse_args()
@@ -85,8 +90,11 @@ def main() -> None:
         require_file(root / relative)
     validate_configs(root)
 
+    briefs_file = args.briefs_file
+    if not briefs_file.is_absolute():
+        briefs_file = root / briefs_file
     brief_count = validate_jsonl(
-        root / "configs/social_eval_briefs.jsonl",
+        briefs_file,
         {"id", "platform", "audience", "prompt"},
         min_records=args.min_eval_briefs,
     )

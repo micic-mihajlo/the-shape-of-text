@@ -217,6 +217,26 @@ def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str
         return tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
 
 
+def generation_record(brief: dict[str, Any], completion: str) -> dict[str, Any]:
+    record = {
+        "id": brief.get("id"),
+        "platform": brief.get("platform"),
+        "audience": brief.get("audience"),
+        "prompt": brief["prompt"],
+        "completion": completion,
+    }
+    for key in (
+        "source_draft",
+        "required_terms",
+        "avoid_terms",
+        "forbidden_terms",
+        "style_family",
+    ):
+        if key in brief:
+            record[key] = brief[key]
+    return record
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate social posts from eval briefs")
     parser.add_argument("--model-id", default="google/gemma-4-12B")
@@ -267,13 +287,7 @@ def main() -> None:
         for brief in read_jsonl(args.briefs_file):
             prompt = prompt_text(brief)
             completion = generate_one(model, tokenizer, prompt, args)
-            record = {
-                "id": brief.get("id"),
-                "platform": brief.get("platform"),
-                "audience": brief.get("audience"),
-                "prompt": brief["prompt"],
-                "completion": completion,
-            }
+            record = generation_record(brief, completion)
             handle.write(json.dumps(record, ensure_ascii=True) + "\n")
             print(f"generated {record['id']}")
 

@@ -99,6 +99,43 @@ ARTIFACT_PATTERNS = (
     r"_\s*$",
 )
 
+FOUNDER_REWRITE_SLOP_PATTERNS = (
+    r"\bsmall product update\b",
+    r"\btiny product update\b",
+    r"\bnot (?:flashy|dramatic)\b",
+    r"\bnothing dramatic\b",
+    r"\bthe useful (?:part|change|bit)\b",
+    r"\bthe (?:main|practical|technical) win\b",
+    r"\bit removes friction\b",
+    r"\bmoments of friction\b",
+    r"\bthe kind of cleanup\b",
+    r"\busers actually feel\b",
+    r"\bworkflow (?:honest|people repeat)\b",
+    r"\bthe next obvious step\b",
+    r"\beasier to trust\b",
+    r"\bwithout adding another step\b",
+    r"\bpolite praise\b",
+    r"\bquick field note\b",
+    r"\bfield report\b",
+    r"\bgrounded feedback ask\b",
+    r"\bconcrete detail\b",
+    r"\bsmall but useful\b",
+    r"\bcommon path\b",
+    r"\bdefault path\b",
+    r"\breal workflow\b",
+    r"\bsurface area\b",
+    r"\bbar for this update\b",
+    r"\bin better shape\b",
+)
+
+FOUNDER_REWRITE_PREFACE_PATTERNS = (
+    r"^\s*sure[,!. ]",
+    r"^\s*absolutely[,!. ]",
+    r"^\s*here(?:'s| is)\b",
+    r"^\s*i'?d write it like this\b",
+    r"^\s*one (?:way|version)\b",
+)
+
 SELF_CORRECTION_PATTERNS = (
     r"\blet'?s try again\b",
     r"\bone more time\b",
@@ -280,6 +317,108 @@ def lacks_terminal_punctuation(completion: str, *, min_words: int = 35) -> bool:
     if not stripped or word_count(stripped) < min_words:
         return False
     return _TERMINAL_PUNCT_RE.search(stripped) is None
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, Iterable):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _compact_normalized(text: str) -> str:
+    return re.sub(r"\s+", "", normalize_for_overlap(text))
+
+
+def _term_present(text: str, term: str) -> bool:
+    term_norm = normalize_for_overlap(term)
+    if not term_norm:
+        return True
+    text_norm = normalize_for_overlap(text)
+    return term_norm in text_norm or _compact_normalized(term) in _compact_normalized(text)
+
+
+def _nonempty_lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def _paragraph_word_counts(text: str) -> list[int]:
+    return [
+        word_count(paragraph)
+        for paragraph in re.split(r"\n\s*\n", text.strip())
+        if paragraph.strip()
+    ]
+
+
+def founder_rewrite_extra_issues(record: dict[str, Any], completion: str) -> list[QualityIssue]:
+    issues: list[QualityIssue] = []
+
+    preface_matches = _matches_any(FOUNDER_REWRITE_PREFACE_PATTERNS, completion)
+    if preface_matches:
+        issues.append(
+            QualityIssue("assistant_preface", "completion starts with assistant framing")
+        )
+
+    slop_matches = _matches_any(FOUNDER_REWRITE_SLOP_PATTERNS, completion)
+    if slop_matches:
+        issues.append(
+            QualityIssue(
+                "generic_social_slop",
+                "completion uses generic product-update or LinkedIn filler phrasing",
+            )
+        )
+
+    forbidden = [
+        term
+        for term in _string_list(record.get("avoid_terms") or record.get("forbidden_terms"))
+        if _term_present(completion, term)
+    ]
+    if forbidden:
+        issues.append(
+            QualityIssue(
+                "forbidden_term",
+                f"completion includes forbidden terms: {', '.join(forbidden[:4])}",
+            )
+        )
+
+    missing = [
+        term
+        for term in _string_list(record.get("required_terms") or record.get("anchors"))
+        if not _term_present(completion, term)
+    ]
+    if missing:
+        issues.append(
+            QualityIssue(
+                "missing_required_anchor",
+                f"completion dropped required anchors: {', '.join(missing[:4])}",
+            )
+        )
+
+    count = word_count(completion)
+    lines = _nonempty_lines(completion)
+    if count >= 50 and len(lines) < 3:
+        issues.append(
+            QualityIssue(
+                "flat_single_block",
+                "long founder rewrite should not be one dense paragraph",
+            )
+        )
+    if count >= 65 and not any(word_count(line) <= 8 for line in lines):
+        issues.append(
+            QualityIssue(
+                "missing_human_rhythm",
+                "long founder rewrite needs at least one short emphasis line",
+            )
+        )
+
+    long_paragraphs = [count for count in _paragraph_word_counts(completion) if count > 90]
+    if long_paragraphs:
+        issues.append(
+            QualityIssue("overlong_paragraph", "completion contains an overlong paragraph")
+        )
+
+    return issues
 
 
 def evaluate_completion_quality(
@@ -470,5 +609,90 @@ def quality_report(
             "min_words": min_words,
             "max_words": max_words,
             "max_prompt_echo_score": max_prompt_echo_score,
+        },
+    }
+
+
+def evaluate_founder_rewrite_quality(
+    record: dict[str, Any],
+    *,
+    completion_field: str = "completion",
+    prompt_field: str = "prompt",
+    min_words: int = 35,
+    max_words: int = 260,
+    max_prompt_echo_score: float = 0.35,
+) -> QualityResult:
+    base = evaluate_completion_quality(
+        record,
+        completion_field=completion_field,
+        prompt_field=prompt_field,
+        min_words=min_words,
+        max_words=max_words,
+        max_prompt_echo_score=max_prompt_echo_score,
+    )
+    completion = str(record.get(completion_field) or "").strip()
+    issues = list(base.issues)
+    issues.extend(founder_rewrite_extra_issues(record, completion))
+    return QualityResult(
+        ok=not issues,
+        issues=tuple(issues),
+        word_count=base.word_count,
+        prompt_echo_score=base.prompt_echo_score,
+    )
+
+
+def founder_rewrite_quality_report(
+    records: list[dict[str, Any]],
+    *,
+    completion_field: str = "completion",
+    prompt_field: str = "prompt",
+    min_words: int = 35,
+    max_words: int = 260,
+    max_prompt_echo_score: float = 0.35,
+) -> dict[str, Any]:
+    results = [
+        evaluate_founder_rewrite_quality(
+            record,
+            completion_field=completion_field,
+            prompt_field=prompt_field,
+            min_words=min_words,
+            max_words=max_words,
+            max_prompt_echo_score=max_prompt_echo_score,
+        )
+        for record in records
+    ]
+    failures = []
+    for index, (record, result) in enumerate(zip(records, results, strict=True)):
+        if result.ok:
+            continue
+        failures.append(
+            {
+                "id": record.get("id", index),
+                "index": index,
+                "issues": [
+                    {"code": issue.code, "message": issue.message}
+                    for issue in result.issues
+                ],
+                "word_count": result.word_count,
+                "prompt_echo_score": result.prompt_echo_score,
+            }
+        )
+
+    total = len(records)
+    failed = len(failures)
+    return {
+        "ok": failed == 0,
+        "total": total,
+        "passed": total - failed,
+        "failed": failed,
+        "failure_rate": failed / total if total else 1.0,
+        "failures": failures,
+        "settings": {
+            "completion_field": completion_field,
+            "prompt_field": prompt_field,
+            "min_words": min_words,
+            "max_words": max_words,
+            "max_prompt_echo_score": max_prompt_echo_score,
+            "profile": "founder_rewrite",
         },
     }

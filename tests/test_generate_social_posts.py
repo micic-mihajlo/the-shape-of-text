@@ -1,5 +1,6 @@
 from scripts.generate_social_posts import (
     control_token_bad_words,
+    generation_record,
     generation_stop_token_ids,
     parse_args,
     prompt_text,
@@ -66,3 +67,20 @@ def test_generation_allows_gemma_turn_token_as_stop_token():
     assert [123] in bad_words
     assert [124] in bad_words
     assert [900] in bad_words
+
+
+def test_generation_record_carries_rewrite_quality_metadata():
+    record = generation_record(
+        {
+            "id": "rewrite",
+            "platform": "LinkedIn",
+            "audience": "founders",
+            "prompt": "Rewrite this.",
+            "required_terms": ["Rivet", "2,300"],
+            "avoid_terms": ["small product update"],
+        },
+        "Finished post.",
+    )
+
+    assert record["required_terms"] == ["Rivet", "2,300"]
+    assert record["avoid_terms"] == ["small product update"]
