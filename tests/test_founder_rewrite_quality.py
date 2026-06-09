@@ -37,6 +37,38 @@ def test_founder_rewrite_rejects_missing_required_anchor():
     assert "missing_required_anchor" in {issue.code for issue in result.issues}
 
 
+def test_founder_rewrite_rejects_forbidden_terms_with_avoid_terms():
+    result = evaluate_founder_rewrite_quality(
+        {
+            "prompt": "Rewrite this post.",
+            "avoid_terms": ["field report"],
+            "forbidden_terms": ["AI the least"],
+            "completion": (
+                "The engineers using AI the least are shipping the best work.\n\n"
+                "That sounds useful, but it reverses the original point and should not "
+                "survive the founder rewrite quality gate."
+            ),
+        }
+    )
+
+    assert "forbidden_term" in {issue.code for issue in result.issues}
+
+
+def test_founder_rewrite_rejects_non_ascii_alpha_leakage():
+    result = evaluate_founder_rewrite_quality(
+        {
+            "prompt": "Rewrite this post.",
+            "completion": (
+                "The model looked useful until one странный token slipped into the post.\n\n"
+                "That is enough to fail the first-try writing bar because the output "
+                "still needs manual cleanup."
+            ),
+        }
+    )
+
+    assert "non_ascii_alpha" in {issue.code for issue in result.issues}
+
+
 def test_founder_rewrite_accepts_specific_rewrite_with_rhythm():
     result = evaluate_founder_rewrite_quality(
         {

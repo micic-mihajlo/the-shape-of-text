@@ -369,9 +369,11 @@ def founder_rewrite_extra_issues(record: dict[str, Any], completion: str) -> lis
             )
         )
 
+    forbidden_terms = _string_list(record.get("avoid_terms"))
+    forbidden_terms.extend(_string_list(record.get("forbidden_terms")))
     forbidden = [
         term
-        for term in _string_list(record.get("avoid_terms") or record.get("forbidden_terms"))
+        for term in forbidden_terms
         if _term_present(completion, term)
     ]
     if forbidden:
@@ -379,6 +381,16 @@ def founder_rewrite_extra_issues(record: dict[str, Any], completion: str) -> lis
             QualityIssue(
                 "forbidden_term",
                 f"completion includes forbidden terms: {', '.join(forbidden[:4])}",
+            )
+        )
+
+    non_ascii_alpha = sorted({char for char in completion if char.isalpha() and not char.isascii()})
+    if non_ascii_alpha:
+        preview = "".join(non_ascii_alpha[:6])
+        issues.append(
+            QualityIssue(
+                "non_ascii_alpha",
+                f"completion contains non-ASCII alphabetic characters: {preview}",
             )
         )
 
