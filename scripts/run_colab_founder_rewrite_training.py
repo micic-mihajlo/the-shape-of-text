@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import shlex
 import subprocess
 from pathlib import Path
@@ -15,6 +16,13 @@ DEFAULT_HUB_MODEL_ID = "micic-mihajlo/gemma-4-12b-it-founder-rewrite-lora"
 def env(name: str, default: str) -> str:
     value = os.environ.get(name)
     return value if value not in (None, "") else default
+
+
+def env_flag(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
 def run(command: list[str], *, cwd: Path | None = None) -> None:
@@ -39,7 +47,7 @@ def colab_secret(name: str) -> str | None:
     return value or None
 
 
-def ensure_hf_token() -> str:
+def ensure_hf_token(*, required: bool) -> str | None:
     token = (
         os.environ.get("HF_TOKEN")
         or os.environ.get("HUGGING_FACE_HUB_TOKEN")
@@ -47,6 +55,8 @@ def ensure_hf_token() -> str:
         or colab_secret("HUGGING_FACE_HUB_TOKEN")
     )
     if not token:
+        if not required:
+            return None
         raise RuntimeError(
             "HF_TOKEN is required. In Colab, add it under Secrets as HF_TOKEN "
             "with read access to Gemma and write access to the target adapter repo."
@@ -55,8 +65,41 @@ def ensure_hf_token() -> str:
     return token
 
 
+def selected_dtype() -> str:
+    requested = os.environ.get("TORCH_DTYPE")
+    if requested in {"bfloat16", "float16"}:
+        return requested
+    try:
+        import torch
+
+        return "bfloat16" if torch.cuda.is_bf16_supported() else "float16"
+    except Exception:
+        return "float16"
+
+
+def gpu_name() -> str:
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_name(0)
+    except Exception:
+        pass
+    return ""
+
+
+def download_artifact(path: Path) -> None:
+    try:
+        from google.colab import files  # type: ignore
+    except Exception:
+        print(f"Artifact zip written to {path}")
+        return
+    files.download(str(path))
+
+
 def main() -> None:
-    token = ensure_hf_token()
+    upload_to_hub = env_flag("UPLOAD_TO_HUB", True)
+    token = ensure_hf_token(required=upload_to_hub)
     repo_url = env("REPO_URL", DEFAULT_REPO_URL)
     git_ref = env("GIT_REF", DEFAULT_GIT_REF)
     hub_model_id = env("HUB_MODEL_ID", DEFAULT_HUB_MODEL_ID)
@@ -64,11 +107,16 @@ def main() -> None:
     repo_dir = workdir / "the-shape-of-text"
     output_dir = workdir / "runs" / "gemma4-founder-rewrite-colab"
 
+    device_name = gpu_name()
+    low_memory_gpu = "T4" in device_name
+    dtype = selected_dtype()
     max_steps = env("MAX_STEPS", "220")
-    max_length = env("MAX_LENGTH", "768")
+    max_length = env("MAX_LENGTH", "512" if low_memory_gpu else "768")
     learning_rate = env("LEARNING_RATE", "8e-5")
     lora_r = env("LORA_R", "16")
-    gradient_accumulation_steps = env("GRADIENT_ACCUMULATION_STEPS", "8")
+    gradient_accumulation_steps = env(
+        "GRADIENT_ACCUMULATION_STEPS", "12" if low_memory_gpu else "8"
+    )
     eval_steps = env("EVAL_STEPS", "55")
     save_steps = env("SAVE_STEPS", "55")
 
@@ -114,6 +162,8 @@ def main() -> None:
             "--use-chat-template",
             "--max-length",
             max_length,
+            "--torch-dtype",
+            dtype,
             "--max-steps",
             max_steps,
             "--per-device-train-batch-size",
@@ -144,6 +194,7 @@ def main() -> None:
             "30",
             "--kl-eval-batches",
             "4",
+            "--bf16" if dtype == "bfloat16" else "--no-bf16",
         ],
         cwd=repo_dir,
     )
@@ -160,6 +211,10 @@ def main() -> None:
             str(output_dir),
             "--use-chat-template",
             "--load-in-4bit",
+            "--torch-dtype",
+            dtype,
+            "--bnb-4bit-compute-dtype",
+            dtype,
             "--no-enable-thinking",
             "--briefs-file",
             "configs/founder_rewrite_eval_briefs.jsonl",
@@ -213,23 +268,32 @@ def main() -> None:
         if path.exists():
             run(["cp", str(path), str(output_dir / path.name)])
 
-    run(
-        [
-            "python",
-            "scripts/upload_hf_adapter.py",
-            "--repo-id",
-            hub_model_id,
-            "--folder",
-            str(output_dir),
-            "--token",
-            token,
-            "--create-pr",
-        ],
-        cwd=repo_dir,
-    )
+    if upload_to_hub:
+        if token is None:
+            raise RuntimeError("HF_TOKEN is required when UPLOAD_TO_HUB is enabled")
+        run(
+            [
+                "python",
+                "scripts/upload_hf_adapter.py",
+                "--repo-id",
+                hub_model_id,
+                "--folder",
+                str(output_dir),
+                "--token",
+                token,
+                "--create-pr",
+            ],
+            cwd=repo_dir,
+        )
+    else:
+        archive_base = workdir / output_dir.name
+        zip_path = Path(shutil.make_archive(str(archive_base), "zip", root_dir=output_dir))
+        print(f"COLAB_ADAPTER_ZIP={zip_path}", flush=True)
+        if env_flag("DOWNLOAD_ARTIFACT", True):
+            download_artifact(zip_path)
 
     if not quality_ok:
-        raise SystemExit("Founder rewrite quality gate failed; uploaded artifacts for inspection.")
+        raise SystemExit("Founder rewrite quality gate failed; artifacts were saved for inspection.")
     print("COLAB_FOUNDER_REWRITE_TRAINING_OK")
 
 

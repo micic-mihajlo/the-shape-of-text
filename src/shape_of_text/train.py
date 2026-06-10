@@ -429,15 +429,19 @@ def load_instruction_dataset(tokenizer: AutoTokenizer, args: argparse.Namespace)
     return raw.map(tokenize, remove_columns=columns)
 
 
-def quantization_config(enabled: bool) -> BitsAndBytesConfig | None:
+def quantization_config(
+    enabled: bool, *, compute_dtype: torch.dtype = torch.bfloat16
+) -> BitsAndBytesConfig | None:
     if not enabled:
         return None
+    if compute_dtype not in (torch.bfloat16, torch.float16):
+        compute_dtype = torch.bfloat16
     return BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_quant_storage=torch.bfloat16,
+        bnb_4bit_compute_dtype=compute_dtype,
+        bnb_4bit_quant_storage=compute_dtype,
     )
 
 
@@ -475,7 +479,7 @@ def recast_non_quantized_params_for_fsdp(model: torch.nn.Module, dtype: torch.dt
 def load_trainable_model(
     args: argparse.Namespace, *, use_gradient_checkpointing: bool
 ) -> torch.nn.Module:
-    q_config = quantization_config(not args.no_4bit)
+    q_config = quantization_config(not args.no_4bit, compute_dtype=torch_dtype(args))
     model_cls = auto_model_class(args)
     model = model_cls.from_pretrained(
         args.model_id,
@@ -511,7 +515,9 @@ def load_target_model(args: argparse.Namespace) -> torch.nn.Module | None:
     model_cls = auto_model_class(args)
     model = model_cls.from_pretrained(
         args.target_model_id,
-        quantization_config=quantization_config(not args.no_4bit),
+        quantization_config=quantization_config(
+            not args.no_4bit, compute_dtype=torch_dtype(args)
+        ),
         dtype=torch_dtype(args),
         attn_implementation=args.attn_implementation,
         device_map=None,
