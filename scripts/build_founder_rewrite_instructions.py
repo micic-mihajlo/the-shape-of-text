@@ -5,22 +5,16 @@ import argparse
 import json
 import random
 from pathlib import Path
+import sys
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
 
-GLOBAL_AVOID_TERMS = [
-    "small product update",
-    "not flashy",
-    "nothing dramatic",
-    "the useful part",
-    "it removes friction",
-    "users actually feel",
-    "field report",
-    "quick field note",
-    "main win",
-    "concrete detail",
-    "grounded feedback ask",
-]
+from shape_of_text.quality import FOUNDER_REWRITE_GLOBAL_AVOID_TERMS
+
+GLOBAL_AVOID_TERMS = list(FOUNDER_REWRITE_GLOBAL_AVOID_TERMS)
 
 PROMPT_VARIANTS = [
     (
@@ -47,7 +41,8 @@ PROMPT_VARIANTS = [
 
 DIRECT_REWRITE_INSTRUCTION = (
     "Return only one finished post. Do not give options, labels, headings, analysis, "
-    "hashtags, placeholders, or bracketed links. Do not invent metrics. End cleanly."
+    "hashtags, placeholders, or bracketed links. Do not invent metrics. Write 45-130 "
+    "words in 3-7 short paragraphs with at least one short standalone line. End cleanly."
 )
 
 SEED_REWRITES: list[dict[str, Any]] = [
@@ -308,7 +303,7 @@ SEED_REWRITES: list[dict[str, Any]] = [
             "confusing replies. We rewrote the macro and made it less robotic."
         ),
         "completion": (
-            "The support macro was technically correct and still bad.\n\n"
+            "The support macro answered the refund policy and still made things worse.\n\n"
             "That is how we ended up with 22 tickets about the refund policy that needed "
             "a second reply.\n\n"
             "The old answer protected the company. The new answer explains the decision "

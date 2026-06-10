@@ -340,6 +340,27 @@ python scripts/check_founder_rewrite_quality.py \
   --output-file outputs/mlx_generation_quality_report.json
 ```
 
+For day-to-day work, prefer Colab Pro or Hugging Face Jobs over local MLX. The
+local MLX path is useful for a short systems proof, but it can make the laptop
+unusable during training.
+
+Run the founder-rewrite job on Colab Pro by executing the runner below in a
+Colab GPU runtime. Put a Hugging Face token in Colab Secrets as `HF_TOKEN` with
+Gemma read access and write access to the adapter repo.
+
+```bash
+GIT_REF=mihajlo/social-style-alignment-framework \
+HUB_MODEL_ID=micic-mihajlo/gemma-4-12b-it-founder-rewrite-lora \
+MAX_STEPS=220 \
+MAX_LENGTH=768 \
+python scripts/run_colab_founder_rewrite_training.py
+```
+
+That script clones the pushed repo ref, runs PyTorch 4-bit QLoRA with the
+MMD/JMQ alignment loss, generates held-out founder rewrites, fails on the strict
+founder quality gate, and uploads the adapter plus reports to Hugging Face as a
+model PR.
+
 To generate a Hugging Face Jobs payload:
 
 ```bash

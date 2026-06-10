@@ -50,6 +50,26 @@ direct commits to `main`.
 
 ## HF Jobs Shape
 
+Use Colab Pro for interactive training when it is available. The Colab runner is
+the lowest-friction remote path for this repo:
+
+```bash
+GIT_REF=mihajlo/social-style-alignment-framework \
+HUB_MODEL_ID=micic-mihajlo/gemma-4-12b-it-founder-rewrite-lora \
+MAX_STEPS=220 \
+MAX_LENGTH=768 \
+python scripts/run_colab_founder_rewrite_training.py
+```
+
+It expects `HF_TOKEN` in Colab Secrets. The token must read gated Gemma weights
+and write to the target adapter repo. Do not use the local MLX path for long
+training while the laptop is needed for other work.
+
+Hugging Face ZeroGPU is useful after training for a small Space/demo endpoint.
+It is not the right place to train a 12B QLoRA adapter; use Colab Pro or HF Jobs
+for the training run, then use ZeroGPU only to serve or test the uploaded
+adapter if needed.
+
 For the first paid run, use a short detached smoke job on `l40sx1` or
 `a10g-large`, with `--max-steps 10` and `--max-length 512`. The committed
 Accelerate config uses `num_processes: 1` so the default payload matches those

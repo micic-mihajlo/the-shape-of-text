@@ -319,11 +319,18 @@ def _chat_template_ids(
     *,
     add_generation_prompt: bool = False,
 ) -> list[int]:
-    ids = tokenizer.apply_chat_template(
-        messages,
-        tokenize=True,
-        add_generation_prompt=add_generation_prompt,
-    )
+    kwargs = {
+        "tokenize": True,
+        "add_generation_prompt": add_generation_prompt,
+        "enable_thinking": False,
+    }
+    try:
+        ids = tokenizer.apply_chat_template(messages, **kwargs)
+    except TypeError as exc:
+        if "enable_thinking" not in str(exc):
+            raise
+        kwargs.pop("enable_thinking")
+        ids = tokenizer.apply_chat_template(messages, **kwargs)
     return _coerce_chat_template_ids(tokenizer, ids)
 
 

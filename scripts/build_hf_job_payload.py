@@ -15,6 +15,8 @@ GENERATION_EVAL_ARGS = (
     "  --top-p 0.85 \\\n"
     "  --repetition-penalty 1.0 \\\n"
     "  --no-repeat-ngram-size 5 \\\n"
+    "  --load-in-4bit \\\n"
+    "  --no-enable-thinking \\\n"
 )
 
 

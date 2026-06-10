@@ -1,6 +1,7 @@
 from scripts.generate_social_posts import (
     control_token_bad_words,
     generation_record,
+    generation_prompt,
     generation_stop_token_ids,
     parse_args,
     prompt_text,
@@ -25,6 +26,20 @@ class FakeGemmaTokenizer:
             "]": [124],
             "[Link]": [900],
         }.get(token, [])
+
+
+class FakeChatTokenizer:
+    def apply_chat_template(
+        self,
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
+    ):
+        assert tokenize is False
+        assert add_generation_prompt is True
+        assert enable_thinking is False
+        return f"<user>{messages[0]['content']}</user><model>"
 
 
 def test_prompt_text_includes_platform_audience_and_prompt():
@@ -52,6 +67,20 @@ def test_prompt_text_appends_required_exact_strings():
     assert "Must include these exact strings: Rivet, 2,300, AI-generated code." in prompt
 
 
+def test_prompt_text_includes_avoid_and_forbidden_terms():
+    prompt = prompt_text(
+        {
+            "prompt": "Rewrite this launch note.",
+            "avoid_terms": ["small product update"],
+            "forbidden_terms": ["AI the least"],
+        }
+    )
+
+    assert "Avoid these phrases and their cadence: small product update, AI the least." in prompt
+    assert "'the lesson was simple'" in prompt
+    assert "'technically perfect'" in prompt
+
+
 def test_generation_defaults_are_bounded_for_social_posts(monkeypatch):
     monkeypatch.setattr("sys.argv", ["generate_social_posts.py"])
 
@@ -62,6 +91,19 @@ def test_generation_defaults_are_bounded_for_social_posts(monkeypatch):
     assert args.top_p == 0.85
     assert args.repetition_penalty == 1.0
     assert args.no_repeat_ngram_size == 5
+    assert args.enable_thinking is False
+    assert args.load_in_4bit is False
+
+
+def test_generation_prompt_disables_thinking_when_supported():
+    rendered = generation_prompt(
+        FakeChatTokenizer(),
+        "Rewrite this.",
+        use_chat_template=True,
+        enable_thinking=False,
+    )
+
+    assert rendered == "<user>Rewrite this.</user><model>"
 
 
 def test_generation_allows_gemma_turn_token_as_stop_token():

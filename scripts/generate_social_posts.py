@@ -4,7 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from shape_of_text.quality import FOUNDER_REWRITE_GLOBAL_AVOID_TERMS
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -44,6 +51,22 @@ def model_dtype(dtype_name: str):
     return torch.float32
 
 
+def generation_quantization_config(args: argparse.Namespace):
+    if not args.load_in_4bit:
+        return None
+
+    import torch
+    from transformers import BitsAndBytesConfig
+
+    compute_dtype = torch.bfloat16 if args.bnb_4bit_compute_dtype == "bfloat16" else torch.float16
+    return BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=compute_dtype,
+    )
+
+
 def load_model(args: argparse.Namespace):
     from peft import PeftModel
 
@@ -51,6 +74,7 @@ def load_model(args: argparse.Namespace):
     model = cls.from_pretrained(
         args.model_id,
         dtype=model_dtype(args.torch_dtype),
+        quantization_config=generation_quantization_config(args),
         device_map=None if args.device_map == "none" else args.device_map,
     )
     if args.adapter_id:
@@ -73,19 +97,53 @@ def prompt_text(brief: dict[str, Any]) -> str:
         anchors = ", ".join(str(term).strip() for term in required_terms if str(term).strip())
         if anchors:
             lines.append(f"Must include these exact strings: {anchors}.")
+    avoid_terms = []
+    for key in ("avoid_terms", "forbidden_terms"):
+        value = brief.get(key)
+        if isinstance(value, list):
+            avoid_terms.extend(str(term).strip() for term in value if str(term).strip())
+    if isinstance(avoid_terms, list) and avoid_terms:
+        avoid = ", ".join(dict.fromkeys(avoid_terms))
+        if avoid:
+            lines.append(f"Avoid these phrases and their cadence: {avoid}.")
+    global_avoid = ", ".join(f"'{term}'" for term in FOUNDER_REWRITE_GLOBAL_AVOID_TERMS)
+    lines.append(
+        "Write 45-130 words. Use 3-7 short paragraphs with at least one short standalone line. "
+        "No 'lesson:' labels, generic launch framing, corporate polish, or marketing recap. "
+        f"Avoid first-try failure phrases such as {global_avoid}."
+    )
     return "\n".join(lines).strip() + "\n\n"
 
 
-def generation_prompt(tokenizer: Any, prompt: str, *, use_chat_template: bool) -> str:
+def generation_prompt(
+    tokenizer: Any,
+    prompt: str,
+    *,
+    use_chat_template: bool,
+    enable_thinking: bool,
+) -> str:
     if not use_chat_template:
         return prompt
     if not hasattr(tokenizer, "apply_chat_template"):
         raise ValueError("--use-chat-template requires a tokenizer with apply_chat_template")
-    return tokenizer.apply_chat_template(
-        [{"role": "user", "content": prompt.strip()}],
-        tokenize=False,
-        add_generation_prompt=True,
-    )
+    kwargs = {
+        "tokenize": False,
+        "add_generation_prompt": True,
+        "enable_thinking": enable_thinking,
+    }
+    try:
+        return tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt.strip()}],
+            **kwargs,
+        )
+    except TypeError as exc:
+        if "enable_thinking" not in str(exc):
+            raise
+        kwargs.pop("enable_thinking")
+        return tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt.strip()}],
+            **kwargs,
+        )
 
 
 def generation_stop_token_ids(tokenizer: Any) -> list[int]:
@@ -183,7 +241,10 @@ def generate_one(model, tokenizer, prompt: str, args: argparse.Namespace) -> str
 
     with torch.no_grad():
         rendered_prompt = generation_prompt(
-            tokenizer, prompt, use_chat_template=args.use_chat_template
+            tokenizer,
+            prompt,
+            use_chat_template=args.use_chat_template,
+            enable_thinking=args.enable_thinking,
         )
         inputs = tokenizer(
             rendered_prompt,
@@ -264,6 +325,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repetition-penalty", type=float, default=1.0)
     parser.add_argument("--no-repeat-ngram-size", type=int, default=5)
     parser.add_argument("--use-chat-template", action="store_true")
+    parser.add_argument("--enable-thinking", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--load-in-4bit", action="store_true")
+    parser.add_argument(
+        "--bnb-4bit-compute-dtype",
+        choices=("bfloat16", "float16"),
+        default="bfloat16",
+    )
     parser.add_argument(
         "--suppress-control-tokens",
         action=argparse.BooleanOptionalAction,

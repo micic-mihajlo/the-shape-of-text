@@ -89,6 +89,22 @@ class DummyBatchEncodingChatTokenizer(DummyChatTokenizer):
         )
 
 
+class DummyThinkingChatTokenizer(DummyChatTokenizer):
+    def apply_chat_template(
+        self,
+        messages,
+        tokenize=True,
+        add_generation_prompt=False,
+        enable_thinking=True,
+    ):
+        assert enable_thinking is False
+        return super().apply_chat_template(
+            messages,
+            tokenize=tokenize,
+            add_generation_prompt=add_generation_prompt,
+        )
+
+
 def test_alignment_weight_warmup_schedule():
     trainer = object.__new__(AlignmentTrainer)
     trainer.state = SimpleNamespace(global_step=4)
@@ -145,6 +161,18 @@ def test_tokenize_chat_instruction_handles_dict_string_chat_template_return():
 def test_tokenize_chat_instruction_handles_batch_encoding_return():
     input_ids, _, labels = tokenize_chat_instruction(
         DummyBatchEncodingChatTokenizer(),
+        prompt="Write a post.",
+        completion="We shipped the small fix today.",
+        max_length=512,
+    )
+
+    assert all(isinstance(token_id, int) for token_id in input_ids)
+    assert any(label != -100 for label in labels)
+
+
+def test_tokenize_chat_instruction_disables_thinking_when_supported():
+    input_ids, _, labels = tokenize_chat_instruction(
+        DummyThinkingChatTokenizer(),
         prompt="Write a post.",
         completion="We shipped the small fix today.",
         max_length=512,

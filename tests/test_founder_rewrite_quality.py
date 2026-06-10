@@ -19,6 +19,41 @@ def test_founder_rewrite_rejects_generic_social_slop():
     assert "generic_social_slop" in {issue.code for issue in result.issues}
 
 
+def test_founder_rewrite_rejects_first_try_template_phrases():
+    result = evaluate_founder_rewrite_quality(
+        {
+            "prompt": "Rewrite this founder post.",
+            "required_terms": ["AI agent", "sandbox", "permissions"],
+            "completion": (
+                "We almost sent a customer email from the wrong environment.\n\n"
+                "The AI agent was supposed to be restricted to the sandbox. We caught "
+                "it before it sent.\n\n"
+                "The lesson was simple: agent safety is permissions first, evals second.\n\n"
+                "Design the sandbox before you tune the model."
+            ),
+        }
+    )
+
+    assert "generic_social_slop" in {issue.code for issue in result.issues}
+
+
+def test_founder_rewrite_rejects_motivational_wrap_up_slop():
+    result = evaluate_founder_rewrite_quality(
+        {
+            "prompt": "Rewrite this founder post.",
+            "required_terms": ["creator", "template"],
+            "completion": (
+                "The creator tool hit a new mark.\n\n"
+                "That is a massive achievement, but it came with a side effect.\n\n"
+                "When everyone uses the same template, the work gets optimized and dead.\n\n"
+                "The next version has to protect the soul of the content."
+            ),
+        }
+    )
+
+    assert "generic_social_slop" in {issue.code for issue in result.issues}
+
+
 def test_founder_rewrite_rejects_missing_required_anchor():
     result = evaluate_founder_rewrite_quality(
         {
