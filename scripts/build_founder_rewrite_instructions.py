@@ -66,6 +66,62 @@ SEED_REWRITES: list[dict[str, Any]] = [
         ),
     },
     {
+        "id": "rivet_creator_self_roast",
+        "audience": "startup founders",
+        "required_terms": ["Rivet", "2,300 creators", "AI-generated code"],
+        "source_draft": (
+            "The engineers using AI most are not always shipping the best work. Rivet "
+            "was built with AI-generated code and now 2,300 creators use it. Maybe the "
+            "product is roasting itself, or maybe the claim is wrong."
+        ),
+        "completion": (
+            "The engineers using AI the most are not automatically shipping the best work.\n\n"
+            "Rivet makes that claim awkward.\n\n"
+            "It was built with mostly AI-generated code, and now 2,300 creators use it. "
+            "So either the product is wrong, or it just roasted itself in public.\n\n"
+            "I think it is wrong.\n\n"
+            "AI does not replace thinking.\n"
+            "It shows you whether there was any thinking to replace."
+        ),
+    },
+    {
+        "id": "creator_template_taste",
+        "audience": "creator economy founders",
+        "required_terms": ["2,300 creators", "template", "taste"],
+        "source_draft": (
+            "The creator product reached 2,300 creators, but too many posts are starting "
+            "from the same template. Speed is useful, but the next version needs to "
+            "protect taste."
+        ),
+        "completion": (
+            "2,300 creators is the kind of number that makes a deck look good.\n\n"
+            "It also exposed the problem.\n\n"
+            "Too many posts were starting from the same template, then landing in the "
+            "same voice. Fast, clean, and forgettable.\n\n"
+            "The next version has to protect taste.\n\n"
+            "Otherwise we are not helping people write.\n"
+            "We are helping them blend in faster."
+        ),
+    },
+    {
+        "id": "exact_anchor_patch",
+        "audience": "AI builders",
+        "required_terms": ["v2.1.4", "ACH-only", "3,700 invoices"],
+        "source_draft": (
+            "The v2.1.4 patch fixed an ACH-only import issue affecting 3,700 invoices. "
+            "The model kept rounding the story and losing the exact details."
+        ),
+        "completion": (
+            "v2.1.4 fixed the ACH-only import path for 3,700 invoices.\n\n"
+            "That sentence sounds too specific until you are the person reconciling the "
+            "wrong batch at 7 pm.\n\n"
+            "The model kept trying to round the story into a lesson. The product did not "
+            "need rounding.\n\n"
+            "It needed the exact thing fixed.\n"
+            "And the exact number preserved."
+        ),
+    },
+    {
         "id": "northstar_onboarding",
         "audience": "technical founders",
         "required_terms": ["Northstar", "three setup steps", "four minutes"],
@@ -251,8 +307,8 @@ SEED_REWRITES: list[dict[str, Any]] = [
         ),
         "completion": (
             "On Tuesday we added the analytics filter everyone assumed already existed.\n\n"
-            "Paid traffic and organic traffic had been sitting in the same report, "
-            "politely ruining each other's numbers.\n\n"
+            "The paid traffic and organic traffic rows had been sitting in the same "
+            "report, politely ruining each other's numbers.\n\n"
             "The product was not missing a dashboard. It was missing a way to stop lying "
             "to ourselves with averages.\n\n"
             "The analytics filter is live now.\n"
@@ -338,8 +394,8 @@ SEED_REWRITES: list[dict[str, Any]] = [
             "logic and added a guard so the same event cannot be imported twice."
         ),
         "completion": (
-            "Four customers had duplicate meetings because our calendar sync trusted the "
-            "wrong identifier.\n\n"
+            "A calendar sync bug gave four customers duplicate meetings because we trusted "
+            "the wrong identifier.\n\n"
             "That is a small sentence for a very annoying bug.\n\n"
             "People plan their day from a calendar. If we put the same meeting there "
             "twice, the product stops being a helper and starts being suspicious.\n\n"
@@ -460,6 +516,8 @@ def prompt_for(seed: dict[str, Any], variant: str) -> str:
         f"{variant}\n\n"
         f"Rough draft:\n{seed['source_draft']}\n\n"
         f"Must include these exact strings: {required}.\n"
+        "Treat commas, hyphens, symbols, digits, casing, and pluralization inside "
+        "those strings as locked characters.\n"
         f"Avoid these phrases and their cadence: {avoid}.\n"
         f"{DIRECT_REWRITE_INSTRUCTION}"
     )

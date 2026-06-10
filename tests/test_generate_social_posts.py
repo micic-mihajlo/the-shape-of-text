@@ -65,6 +65,7 @@ def test_prompt_text_appends_required_exact_strings():
     )
 
     assert "Must include these exact strings: Rivet, 2,300, AI-generated code." in prompt
+    assert "keep every character unchanged" in prompt
 
 
 def test_prompt_text_includes_avoid_and_forbidden_terms():

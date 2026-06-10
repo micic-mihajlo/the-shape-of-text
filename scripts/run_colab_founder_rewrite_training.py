@@ -112,6 +112,7 @@ def main() -> None:
     target_model_id = env("TARGET_MODEL_ID", "" if low_memory_gpu else model_id)
     output_name = env("OUTPUT_NAME", "gemma4-founder-rewrite-colab")
     output_dir = workdir / "runs" / output_name
+    resume_from_checkpoint = env("RESUME_FROM_CHECKPOINT", "")
     dtype = selected_dtype()
     max_steps = env("MAX_STEPS", "260")
     max_length = env("MAX_LENGTH", "512" if low_memory_gpu else "768")
@@ -181,6 +182,14 @@ def main() -> None:
             "examples/founder_rewrite_instructions/validation.jsonl",
             "--output-dir",
             str(output_dir),
+            *(
+                [
+                    "--resume-from-checkpoint",
+                    resume_from_checkpoint,
+                ]
+                if resume_from_checkpoint
+                else []
+            ),
             "--use-chat-template",
             "--max-length",
             max_length,

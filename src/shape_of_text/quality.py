@@ -439,6 +439,20 @@ def _term_present(text: str, term: str) -> bool:
     return any(_contains_normalized_phrase(text_norm, variant) for variant in variants)
 
 
+def _required_term_present(text: str, term: str) -> bool:
+    stripped = term.strip()
+    if not stripped:
+        return True
+
+    escaped_parts = [re.escape(part) for part in re.split(r"\s+", stripped)]
+    pattern = r"\s+".join(escaped_parts)
+    if stripped[0].isalnum():
+        pattern = rf"(?<![A-Za-z0-9]){pattern}"
+    if stripped[-1].isalnum():
+        pattern = rf"{pattern}(?![A-Za-z0-9])"
+    return re.search(pattern, text) is not None
+
+
 def _nonempty_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
@@ -497,7 +511,7 @@ def founder_rewrite_extra_issues(record: dict[str, Any], completion: str) -> lis
     missing = [
         term
         for term in _string_list(record.get("required_terms") or record.get("anchors"))
-        if not _term_present(completion, term)
+        if not _required_term_present(completion, term)
     ]
     if missing:
         issues.append(

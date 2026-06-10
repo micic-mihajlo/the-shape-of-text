@@ -184,6 +184,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mask-prompt-labels", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--use-chat-template", action="store_true")
     parser.add_argument("--output-dir", default="runs/gemma4-12b-style-alignment")
+    parser.add_argument("--resume-from-checkpoint", default=None)
     parser.add_argument("--max-length", type=int, default=2048)
     parser.add_argument("--max-steps", type=int, default=1000)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
@@ -642,7 +643,7 @@ def main() -> None:
         mmd_warmup_steps=args.mmd_warmup_steps,
         jmq_warmup_steps=args.jmq_warmup_steps,
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint or None)
     trainer.save_model(args.output_dir)
     tokenizer.save_pretrained(args.output_dir)
     if args.push_to_hub:

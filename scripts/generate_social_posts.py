@@ -99,7 +99,9 @@ def prompt_text(brief: dict[str, Any]) -> str:
             lines.append(f"Must include these exact strings: {anchors}.")
             lines.append(
                 "Copy every required string verbatim in the final post. Do not paraphrase, "
-                "renumber, change casing, pluralize, or omit required strings."
+                "renumber, change casing, pluralize, or omit required strings. If a required "
+                "string contains commas, hyphens, symbols, or digits, keep every character "
+                "unchanged."
             )
     avoid_terms = []
     for key in ("avoid_terms", "forbidden_terms"):
