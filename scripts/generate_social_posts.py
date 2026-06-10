@@ -97,6 +97,10 @@ def prompt_text(brief: dict[str, Any]) -> str:
         anchors = ", ".join(str(term).strip() for term in required_terms if str(term).strip())
         if anchors:
             lines.append(f"Must include these exact strings: {anchors}.")
+            lines.append(
+                "Copy every required string verbatim in the final post. Do not paraphrase, "
+                "renumber, change casing, pluralize, or omit required strings."
+            )
     avoid_terms = []
     for key in ("avoid_terms", "forbidden_terms"):
         value = brief.get(key)

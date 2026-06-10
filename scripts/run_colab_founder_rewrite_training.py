@@ -105,20 +105,34 @@ def main() -> None:
     hub_model_id = env("HUB_MODEL_ID", DEFAULT_HUB_MODEL_ID)
     workdir = Path(env("COLAB_WORKDIR", "/content")).resolve()
     repo_dir = workdir / "the-shape-of-text"
-    output_dir = workdir / "runs" / "gemma4-founder-rewrite-colab"
 
     device_name = gpu_name()
     low_memory_gpu = "T4" in device_name
+    model_id = env("MODEL_ID", "google/gemma-4-12B-it")
+    target_model_id = env("TARGET_MODEL_ID", "" if low_memory_gpu else model_id)
+    output_name = env("OUTPUT_NAME", "gemma4-founder-rewrite-colab")
+    output_dir = workdir / "runs" / output_name
     dtype = selected_dtype()
-    max_steps = env("MAX_STEPS", "220")
+    max_steps = env("MAX_STEPS", "260")
     max_length = env("MAX_LENGTH", "512" if low_memory_gpu else "768")
-    learning_rate = env("LEARNING_RATE", "8e-5")
+    learning_rate = env("LEARNING_RATE", "4e-5")
     lora_r = env("LORA_R", "16")
     gradient_accumulation_steps = env(
         "GRADIENT_ACCUMULATION_STEPS", "12" if low_memory_gpu else "8"
     )
-    eval_steps = env("EVAL_STEPS", "55")
-    save_steps = env("SAVE_STEPS", "55")
+    eval_steps = env("EVAL_STEPS", "65")
+    save_steps = env("SAVE_STEPS", "65")
+    mmd_weight = env("MMD_WEIGHT", "0" if not target_model_id else "0.0005")
+    jmq_weight = env("JMQ_WEIGHT", "0" if not target_model_id else "0.0005")
+    mmd_warmup_steps = env("MMD_WARMUP_STEPS", "180")
+    jmq_warmup_steps = env("JMQ_WARMUP_STEPS", "180")
+    mmd_vocab_sample_size = env("MMD_VOCAB_SAMPLE_SIZE", "1024")
+    jmq_vocab_sample_size = env("JMQ_VOCAB_SAMPLE_SIZE", "2048")
+    kl_vocab_sample_size = env("KL_VOCAB_SAMPLE_SIZE", "2048")
+    generation_temperature = env("GENERATION_TEMPERATURE", "0")
+    generation_top_p = env("GENERATION_TOP_P", "0.85")
+    generation_repetition_penalty = env("GENERATION_REPETITION_PENALTY", "1.0")
+    generation_no_repeat_ngram_size = env("GENERATION_NO_REPEAT_NGRAM_SIZE", "5")
 
     run(["nvidia-smi"])
     shell("python -m pip install -U pip")
@@ -148,7 +162,15 @@ def main() -> None:
             "-m",
             "shape_of_text.train",
             "--model-id",
-            "google/gemma-4-12B-it",
+            model_id,
+            *(
+                [
+                    "--target-model-id",
+                    target_model_id,
+                ]
+                if target_model_id
+                else []
+            ),
             "--model-class",
             "image-text-to-text",
             "--dataset-format",
@@ -185,13 +207,19 @@ def main() -> None:
             "--lora-alpha",
             str(int(lora_r) * 2),
             "--mmd-weight",
-            "0.01",
+            mmd_weight,
             "--jmq-weight",
-            "0.01",
+            jmq_weight,
             "--mmd-warmup-steps",
-            "30",
+            mmd_warmup_steps,
             "--jmq-warmup-steps",
-            "30",
+            jmq_warmup_steps,
+            "--mmd-vocab-sample-size",
+            mmd_vocab_sample_size,
+            "--jmq-vocab-sample-size",
+            jmq_vocab_sample_size,
+            "--kl-vocab-sample-size",
+            kl_vocab_sample_size,
             "--kl-eval-batches",
             "4",
             "--bf16" if dtype == "bfloat16" else "--no-bf16",
@@ -206,7 +234,7 @@ def main() -> None:
             "python",
             "scripts/generate_social_posts.py",
             "--model-id",
-            "google/gemma-4-12B-it",
+            model_id,
             "--adapter-id",
             str(output_dir),
             "--use-chat-template",
@@ -220,6 +248,14 @@ def main() -> None:
             "configs/founder_rewrite_eval_briefs.jsonl",
             "--output-file",
             str(adapter_posts),
+            "--temperature",
+            generation_temperature,
+            "--top-p",
+            generation_top_p,
+            "--repetition-penalty",
+            generation_repetition_penalty,
+            "--no-repeat-ngram-size",
+            generation_no_repeat_ngram_size,
         ],
         cwd=repo_dir,
     )
@@ -242,9 +278,9 @@ def main() -> None:
             "--adapter-id",
             hub_model_id,
             "--base-model",
-            "google/gemma-4-12B-it",
+            model_id,
             "--training-method",
-            "Colab single-GPU 4-bit QLoRA + MMD/JMQ",
+            "Colab single-GPU 4-bit QLoRA + base-logit MMD/JMQ",
             "--train-file",
             "examples/founder_rewrite_instructions/train.jsonl",
             "--eval-file",
