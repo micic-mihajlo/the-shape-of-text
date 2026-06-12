@@ -54,6 +54,8 @@ Generate a payload without touching local GPU:
 ```bash
 python scripts/build_diffusiongemma_hf_job_payload.py \
   --git-ref mihajlo/social-style-alignment-framework \
+  --artifact-repo micic-mihajlo/diffusiongemma-social-writing-artifacts \
+  --run-id smoke-YYYYMMDD-HHMMSS \
   --detach \
   > outputs/hf-diffusiongemma-smoke-job.json
 ```
@@ -62,6 +64,16 @@ Submit it with the Hugging Face Jobs MCP or CLI only after confirming the budget
 The default flavor is `l40sx1`; the job downloads a large GGUF, so it is useful
 for proving runtime behavior but not for long training loops on a small credit
 budget.
+
+When `DIFFUSIONGEMMA_ARTIFACT_REPO` is set, the remote runner uploads a Hub
+dataset artifact folder containing:
+
+- `diffusiongemma_founder_posts.jsonl`
+- `diffusiongemma_founder_quality_report.json`
+- `run_metadata.json`
+- a dataset card with valid YAML metadata
+
+That makes the remote gate auditable without keeping the Colab/HF job logs open.
 
 ## Fine-Tuning Direction
 

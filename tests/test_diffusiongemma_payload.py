@@ -23,8 +23,18 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
         timeout="2h",
         detach=True,
         volume=[],
+        run_id="test-run",
+        artifact_repo="micic-mihajlo/diffusiongemma-social-writing-artifacts",
+        artifact_repo_type="dataset",
+        artifact_path_prefix="runs",
         gguf_repo="unsloth/diffusiongemma-26B-A4B-it-GGUF",
         gguf_quant="Q4_K_M",
+        llama_cpp_ref="pull/24423/head",
+        cuda_arch="80",
+        n_predict=768,
+        max_attempts=3,
+        temperature=0.4,
+        top_p=0.9,
     )
 
     payload = build_payload(args)
@@ -39,6 +49,12 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
     assert "libssl-dev" in command
     assert "REQUIRE_CUDA=1" in command
     assert "unsloth/diffusiongemma-26B-A4B-it-GGUF" in command
+    assert "DIFFUSIONGEMMA_RUN_ID=test-run" in command
+    assert "DIFFUSIONGEMMA_ARTIFACT_REPO=micic-mihajlo/diffusiongemma-social-writing-artifacts" in command
+    assert "LLAMA_CPP_DIFFUSION_REF=pull/24423/head" in command
+    assert "CMAKE_CUDA_ARCHITECTURES=80" in command
+    assert "GENERATION_N_PREDICT=768" in command
+    assert "GENERATION_MAX_ATTEMPTS=3" in command
     assert "python3 scripts/run_colab_diffusiongemma_smoke.py" in command
 
 
@@ -85,6 +101,37 @@ def test_llamacpp_build_targets_a100_cuda_arch_by_default(monkeypatch, tmp_path)
 
 def test_diffusiongemma_default_gguf_filename_matches_unsloth_repo():
     assert smoke.default_gguf_filename("Q4_K_M") == "diffusiongemma-26B-A4B-it-Q4_K_M.gguf"
+
+
+def test_diffusiongemma_artifact_persistence_writes_repo_card(tmp_path):
+    generated = tmp_path / "posts.jsonl"
+    report = tmp_path / "report.json"
+    metadata = tmp_path / "metadata.json"
+    generated.write_text('{"id":"x","completion":"Done."}\n', encoding="utf-8")
+    report.write_text('{"failure_rate":0.0}\n', encoding="utf-8")
+    metadata.write_text('{"status":"passed"}\n', encoding="utf-8")
+
+    artifact_dir = tmp_path / "artifacts" / "run-1"
+    smoke.persist_artifacts(
+        artifact_dir=artifact_dir,
+        generated_file=generated,
+        quality_report=report,
+        metadata_file=metadata,
+    )
+
+    assert (artifact_dir / "diffusiongemma_founder_posts.jsonl").read_text(
+        encoding="utf-8"
+    ) == generated.read_text(encoding="utf-8")
+    readme = (artifact_dir / "README.md").read_text(encoding="utf-8")
+    assert readme.startswith("---\nlicense: apache-2.0")
+    assert "diffusiongemma" in readme
+
+
+def test_diffusiongemma_hub_repo_url_for_dataset():
+    assert (
+        smoke.hub_repo_url("micic-mihajlo/artifacts", "dataset")
+        == "https://huggingface.co/datasets/micic-mihajlo/artifacts"
+    )
 
 
 def test_diffusiongemma_cli_prompt_requests_final_post_only():
@@ -367,6 +414,9 @@ def test_colab_diffusiongemma_smoke_uses_larger_generation_budget(monkeypatch, t
     monkeypatch.setattr(smoke, "download_gguf", lambda repo_id, filename, model_dir: gguf_file)
     monkeypatch.setattr(smoke.subprocess, "run", lambda *args, **kwargs: argparse.Namespace(returncode=0))
     monkeypatch.setattr(Path, "read_text", lambda self, encoding=None: "")
+    monkeypatch.setattr(smoke, "write_run_metadata", lambda **kwargs: None)
+    monkeypatch.setattr(smoke, "persist_artifacts", lambda **kwargs: None)
+    monkeypatch.setattr(smoke, "upload_artifacts", lambda artifact_dir: None)
 
     smoke.main()
 
