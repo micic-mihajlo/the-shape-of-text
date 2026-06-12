@@ -27,6 +27,7 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
     assert payload["args"]["detach"] is True
     assert payload["args"]["secrets"] == {"HF_TOKEN": "$HF_TOKEN"}
     assert "git checkout abc123" in command
+    assert "libssl-dev" in command
     assert "REQUIRE_CUDA=1" in command
     assert "unsloth/diffusiongemma-26B-A4B-it-GGUF" in command
     assert "python3 scripts/run_colab_diffusiongemma_smoke.py" in command

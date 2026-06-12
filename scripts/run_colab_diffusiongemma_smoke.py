@@ -82,6 +82,7 @@ def ensure_llama_cpp(llama_cpp_dir: Path) -> Path:
             "Ninja",
             "-DCMAKE_BUILD_TYPE=Release",
             cuda_flag,
+            "-DGGML_CUDA_ARCHITECTURES=native",
         ],
         cwd=llama_cpp_dir,
     )
@@ -141,7 +142,7 @@ def main() -> None:
     quality_report = workdir / "diffusiongemma_founder_quality_report.json"
 
     run(["nvidia-smi"])
-    shell("apt-get update && apt-get install -y git build-essential cmake ninja-build")
+    shell("apt-get update && apt-get install -y git build-essential cmake ninja-build libssl-dev")
     clone_repo(repo_dir, repo_url, git_ref)
     install_repo(repo_dir)
     run(

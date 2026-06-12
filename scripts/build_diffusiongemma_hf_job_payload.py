@@ -14,7 +14,7 @@ def clone_and_run_shell(args: argparse.Namespace) -> str:
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3 python3-pip git build-essential cmake ninja-build
+apt-get install -y python3 python3-pip git build-essential cmake ninja-build libssl-dev
 git clone {shlex.quote(args.repo_url)} /workspace/the-shape-of-text
 cd /workspace/the-shape-of-text
 git checkout {shlex.quote(args.git_ref)}
