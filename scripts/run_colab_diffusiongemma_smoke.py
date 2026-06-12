@@ -223,24 +223,9 @@ def hub_repo_url(repo_id: str, repo_type: str) -> str:
     return f"https://huggingface.co/{repo_id}"
 
 
-def upload_artifacts(artifact_dir: Path) -> None:
-    repo_id = os.environ.get("DIFFUSIONGEMMA_ARTIFACT_REPO", "").strip()
-    if not repo_id:
-        print(f"DIFFUSIONGEMMA_ARTIFACT_DIR={artifact_dir}", flush=True)
-        return
-    token = os.environ.get("HF_TOKEN")
-    if not token:
-        raise RuntimeError("HF_TOKEN is required to upload DiffusionGemma artifacts.")
-    try:
-        from huggingface_hub import HfApi
-    except ImportError:
-        run([PYTHON, "-m", "pip", "install", "huggingface_hub"])
-        from huggingface_hub import HfApi
-
-    repo_type = env("DIFFUSIONGEMMA_ARTIFACT_REPO_TYPE", "dataset")
+def upload_artifact_folder(api: object, *, repo_id: str, repo_type: str, artifact_dir: Path) -> str:
     path_prefix = env("DIFFUSIONGEMMA_ARTIFACT_PATH_PREFIX", "runs").strip("/")
     remote_path = f"{path_prefix}/{artifact_dir.name}" if path_prefix else artifact_dir.name
-    api = HfApi(token=token)
     api.create_repo(repo_id=repo_id, repo_type=repo_type, exist_ok=True)
     api.upload_file(
         repo_id=repo_id,
@@ -256,6 +241,48 @@ def upload_artifacts(artifact_dir: Path) -> None:
         path_in_repo=remote_path,
         commit_message=f"Add DiffusionGemma smoke artifacts {artifact_dir.name}",
     )
+    return remote_path
+
+
+def upload_artifacts(artifact_dir: Path) -> None:
+    repo_id = os.environ.get("DIFFUSIONGEMMA_ARTIFACT_REPO", "").strip()
+    if not repo_id:
+        print(f"DIFFUSIONGEMMA_ARTIFACT_DIR={artifact_dir}", flush=True)
+        return
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is required to upload DiffusionGemma artifacts.")
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        run([PYTHON, "-m", "pip", "install", "huggingface_hub"])
+        from huggingface_hub import HfApi
+
+    repo_type = env("DIFFUSIONGEMMA_ARTIFACT_REPO_TYPE", "dataset")
+    api = HfApi(token=token)
+    try:
+        remote_path = upload_artifact_folder(
+            api,
+            repo_id=repo_id,
+            repo_type=repo_type,
+            artifact_dir=artifact_dir,
+        )
+    except Exception:
+        fallback_repo_type = env("DIFFUSIONGEMMA_ARTIFACT_FALLBACK_REPO_TYPE", "model")
+        if repo_type == fallback_repo_type:
+            raise
+        print(
+            "DIFFUSIONGEMMA_ARTIFACT_UPLOAD_FALLBACK="
+            f"{repo_type}_to_{fallback_repo_type}",
+            flush=True,
+        )
+        repo_type = fallback_repo_type
+        remote_path = upload_artifact_folder(
+            api,
+            repo_id=repo_id,
+            repo_type=repo_type,
+            artifact_dir=artifact_dir,
+        )
     print(f"DIFFUSIONGEMMA_ARTIFACT_REPO={hub_repo_url(repo_id, repo_type)}", flush=True)
     print(f"DIFFUSIONGEMMA_ARTIFACT_PATH={remote_path}", flush=True)
 

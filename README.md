@@ -174,10 +174,11 @@ python scripts/build_diffusiongemma_hf_job_payload.py \
 
 If the base DiffusionGemma GGUF clears the founder gate, use it as the hackathon
 runtime and avoid spending training credits. With `--artifact-repo`, the remote
-job also uploads generated posts, the quality report, and run metadata to a Hub
-dataset for later comparison. If the base model fails, fine-tuning must use a
-diffusion-aware trainer such as Unsloth's DiffusionGemma path or NeMo AutoModel,
-not the causal-LM trainer in this repo.
+job also uploads generated posts, the quality report, and run metadata to the Hub
+for later comparison. The default target is a dataset repo, with a model-repo
+fallback for tokens that cannot create datasets. If the base model fails,
+fine-tuning must use a diffusion-aware trainer such as Unsloth's DiffusionGemma
+path or NeMo AutoModel, not the causal-LM trainer in this repo.
 
 ## Evaluation
 

@@ -66,13 +66,15 @@ for proving runtime behavior but not for long training loops on a small credit
 budget.
 
 When `DIFFUSIONGEMMA_ARTIFACT_REPO` is set, the remote runner uploads a Hub
-dataset artifact folder containing:
+artifact folder containing:
 
 - `diffusiongemma_founder_posts.jsonl`
 - `diffusiongemma_founder_quality_report.json`
 - `run_metadata.json`
 - a dataset card with valid YAML metadata
 
+The default repo type is `dataset`. If the job token cannot create datasets,
+the uploader falls back to `model`, which still gives the run a durable Hub URL.
 That makes the remote gate auditable without keeping the Colab/HF job logs open.
 
 ## Fine-Tuning Direction

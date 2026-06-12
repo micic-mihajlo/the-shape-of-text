@@ -26,6 +26,7 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
         run_id="test-run",
         artifact_repo="micic-mihajlo/diffusiongemma-social-writing-artifacts",
         artifact_repo_type="dataset",
+        artifact_fallback_repo_type="model",
         artifact_path_prefix="runs",
         gguf_repo="unsloth/diffusiongemma-26B-A4B-it-GGUF",
         gguf_quant="Q4_K_M",
@@ -51,6 +52,7 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
     assert "unsloth/diffusiongemma-26B-A4B-it-GGUF" in command
     assert "DIFFUSIONGEMMA_RUN_ID=test-run" in command
     assert "DIFFUSIONGEMMA_ARTIFACT_REPO=micic-mihajlo/diffusiongemma-social-writing-artifacts" in command
+    assert "DIFFUSIONGEMMA_ARTIFACT_FALLBACK_REPO_TYPE=model" in command
     assert "LLAMA_CPP_DIFFUSION_REF=pull/24423/head" in command
     assert "CMAKE_CUDA_ARCHITECTURES=80" in command
     assert "GENERATION_N_PREDICT=768" in command
@@ -132,6 +134,39 @@ def test_diffusiongemma_hub_repo_url_for_dataset():
         smoke.hub_repo_url("micic-mihajlo/artifacts", "dataset")
         == "https://huggingface.co/datasets/micic-mihajlo/artifacts"
     )
+
+
+def test_diffusiongemma_upload_artifact_folder_uses_run_path(monkeypatch, tmp_path):
+    calls = []
+
+    class FakeApi:
+        def create_repo(self, **kwargs):
+            calls.append(("create_repo", kwargs))
+
+        def upload_file(self, **kwargs):
+            calls.append(("upload_file", kwargs))
+
+        def upload_folder(self, **kwargs):
+            calls.append(("upload_folder", kwargs))
+
+    artifact_dir = tmp_path / "run-1"
+    artifact_dir.mkdir()
+    (artifact_dir / "README.md").write_text("---\nlicense: apache-2.0\n---\n", encoding="utf-8")
+    monkeypatch.setenv("DIFFUSIONGEMMA_ARTIFACT_PATH_PREFIX", "runs")
+
+    remote_path = smoke.upload_artifact_folder(
+        FakeApi(),
+        repo_id="micic-mihajlo/artifacts",
+        repo_type="model",
+        artifact_dir=artifact_dir,
+    )
+
+    assert remote_path == "runs/run-1"
+    assert calls[0] == (
+        "create_repo",
+        {"repo_id": "micic-mihajlo/artifacts", "repo_type": "model", "exist_ok": True},
+    )
+    assert calls[2][1]["path_in_repo"] == "runs/run-1"
 
 
 def test_diffusiongemma_cli_prompt_requests_final_post_only():
