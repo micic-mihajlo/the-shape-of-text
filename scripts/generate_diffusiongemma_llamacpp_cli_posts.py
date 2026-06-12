@@ -73,8 +73,18 @@ GENERIC_TAIL_LINES = {
 FORBIDDEN_PHRASE_REPLACEMENTS = (
     ("We just updated", "We changed"),
     ("users notice the difference", "users notice when the product stops making them guess"),
-    ("The real goal is Gemma writing well on the first try.", "Gemma needs to write well on the first try."),
     ("despite being technically right", "even though the policy was accurate"),
+)
+
+FORBIDDEN_REGEX_REPLACEMENTS = (
+    (
+        re.compile(r"\bThe(?: real)? goal is Gemma writing well on (?:the )?first try\.?", re.IGNORECASE),
+        "Gemma needs to write well on the first try.",
+    ),
+    (
+        re.compile(r"\bthe(?: real)? goal is\b", re.IGNORECASE),
+        "the standard is",
+    ),
 )
 
 
@@ -175,6 +185,8 @@ def apply_forbidden_phrase_replacements(text: str) -> str:
     cleaned = text
     for old, new in FORBIDDEN_PHRASE_REPLACEMENTS:
         cleaned = cleaned.replace(old, new)
+    for pattern, replacement in FORBIDDEN_REGEX_REPLACEMENTS:
+        cleaned = pattern.sub(replacement, cleaned)
     return cleaned
 
 
@@ -359,11 +371,12 @@ def generate_quality_checked_completion(
             args.seed = original_seed
             return completion, attempt + 1
         repair_issues = [issue.code for issue in quality.issues]
-        print(
-            f"retrying {brief.get('id', '<unknown>')} after quality issues: "
-            f"{', '.join(repair_issues)}",
-            flush=True,
-        )
+        if attempt + 1 < args.max_attempts:
+            print(
+                f"retrying {brief.get('id', '<unknown>')} after quality issues: "
+                f"{', '.join(repair_issues)}",
+                flush=True,
+            )
     args.seed = original_seed
     return last_completion, args.max_attempts
 
@@ -393,7 +406,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--request-timeout", type=float, default=360)
-    parser.add_argument("--max-attempts", type=int, default=2)
+    parser.add_argument("--max-attempts", type=int, default=3)
     return parser.parse_args()
 
 

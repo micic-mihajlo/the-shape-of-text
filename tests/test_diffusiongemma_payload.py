@@ -160,7 +160,7 @@ def test_diffusiongemma_cli_completion_extracts_paragraph_labels_from_thought_ch
         "The model finally loads in LM Studio.\n"
         "But the first answer still sounds like a template.\n"
         "That is not a win.\n"
-        "The goal is Gemma writing well on the first try."
+        "Gemma needs to write well on the first try."
     )
 
 
@@ -277,7 +277,7 @@ def test_diffusiongemma_cli_completion_normalizes_known_forbidden_phrases():
 
 But users notice the difference.
 
-The real goal is Gemma writing well on the first try.
+The goal is Gemma writing well on first try.
 
 Our support macro failed despite being technically right.
 """
@@ -358,6 +358,7 @@ def test_colab_diffusiongemma_smoke_uses_larger_generation_budget(monkeypatch, t
     )
     assert generate_command[generate_command.index("--n-predict") + 1] == "768"
     assert generate_command[generate_command.index("--request-timeout") + 1] == "720"
+    assert generate_command[generate_command.index("--max-attempts") + 1] == "3"
 
 
 def test_diffusiongemma_generator_file_entrypoint_imports_from_any_cwd(tmp_path):

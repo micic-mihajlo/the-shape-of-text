@@ -181,6 +181,8 @@ def main() -> None:
             env("GENERATION_TOP_P", "0.9"),
             "--request-timeout",
             env("GENERATION_REQUEST_TIMEOUT", "720"),
+            "--max-attempts",
+            env("GENERATION_MAX_ATTEMPTS", "3"),
         ],
         cwd=repo_dir,
     )
