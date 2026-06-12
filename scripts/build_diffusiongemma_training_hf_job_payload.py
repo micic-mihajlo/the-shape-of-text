@@ -12,7 +12,7 @@ DEFAULT_HUB_MODEL_ID = "micic-mihajlo/diffusiongemma-social-writer-lora"
 
 
 def clone_and_train_shell(args: argparse.Namespace) -> str:
-    return f"""
+    command = f"""
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export HF_HUB_ENABLE_HF_TRANSFER=1
@@ -38,6 +38,9 @@ python3 scripts/run_hf_diffusiongemma_training.py \\
   --max-denoising-steps {shlex.quote(str(args.max_denoising_steps))} \\
   --min-free-gb {shlex.quote(str(args.min_free_gb))}
 """.strip()
+    if args.include_eval_hard_cases:
+        command += " \\\n  --include-eval-hard-cases"
+    return command
 
 
 def build_payload(args: argparse.Namespace) -> dict:
@@ -98,6 +101,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lora-alpha", type=int, default=64)
     parser.add_argument("--eval-limit", type=int, default=10)
     parser.add_argument("--max-denoising-steps", type=int, default=32)
+    parser.add_argument("--include-eval-hard-cases", action="store_true")
     parser.add_argument("--min-free-gb", type=float, default=50.0)
     parser.add_argument("--cli", action="store_true", help="Print an hf CLI command instead of JSON.")
     return parser.parse_args()

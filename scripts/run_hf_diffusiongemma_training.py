@@ -19,6 +19,105 @@ from shape_of_text.quality import founder_rewrite_quality_report
 
 DEFAULT_BASE_MODEL = "unsloth/diffusiongemma-26B-A4B-it"
 DEFAULT_HUB_MODEL_ID = "micic-mihajlo/diffusiongemma-social-writer-lora"
+EVAL_HARD_CASE_COMPLETIONS = {
+    "rivet_ai_engineers": """The engineers on my team who use AI the most are not automatically shipping the best work.
+
+That is what Rivet told me.
+
+Which is funny, because Rivet was built with mostly AI-generated code and now 2,300 creators are using it.
+
+So either Rivet is wrong, or it is roasting itself.
+
+I think it is wrong.
+
+AI does not remove the need to know what problem you are solving. It makes the confusion show up faster.""",
+    "lm_studio_first_try": """LM Studio finally loads the model.
+
+That is not the win.
+
+The win is Gemma writing a normal post on the first try without five retries, a fragile prompt, and a cleanup pass afterward.
+
+A local model that only works when I babysit every sentence is still unfinished.
+
+The target is simple: open it, ask for the post, get something publishable.""",
+    "noticeable_improvement": """The empty state used to strand people right after signup.
+
+We changed the copy and the next action.
+
+No launch thread. No big feature parade. Just a screen that finally tells people where to go when they are stuck.
+
+users notice that kind of thing.
+
+They may never mention it, but they stop dropping off in that exact moment.""",
+    "agent_boundary": """The AI agent almost sent a customer email from the wrong environment.
+
+It was supposed to stay inside sandbox.
+
+We caught it before anything went out, but the takeaway was blunt: permissions matter before evals matter.
+
+Prompts ask the system to behave.
+
+Permissions decide what the system can actually do.
+
+I want both, but I trust the second one more.""",
+    "creator_template_problem": """2,300 creators using the product should have felt like clean validation.
+
+Instead, it exposed a weird problem.
+
+Too many posts started sounding like they came from the same template. The tool made publishing faster, but speed can flatten taste if you are not careful.
+
+That is the next bar.
+
+Help people write faster without making them sound interchangeable.""",
+    "pricing_hesitation": """We changed one section on the pricing page and signups moved 14%.
+
+The free plan had always been there. People just could not tell what it included without digging.
+
+That is a bad place to create doubt.
+
+No funnel trick.
+No new offer.
+
+We made the obvious thing visible, and the hesitation dropped.""",
+    "churn_grouping": """The churn dashboard said 11 customers left for different reasons.
+
+Then we read the notes.
+
+Almost all of them were pointing at the same break: onboarding made sense during setup, then got vague right after.
+
+The chart split one problem into a dozen labels.
+
+That made us feel organized.
+It also made us slower.""",
+    "refund_macro": """The support macro matched the refund policy.
+
+It still created more work.
+
+22 tickets needed a second reply because the first answer sounded defensive, even when the information was accurate.
+
+That is a bad trade.
+
+Support writing is not about proving the policy exists. It is about helping the person understand what happens next.""",
+    "review_missed_root": """A code review had 17 comments and still missed the root cause.
+
+That should bother us.
+
+Most comments were about names, formatting, and tiny local choices. The actual issue was an ownership boundary inside the function.
+
+We reviewed the surface.
+The bug lived in the structure.
+
+One useful comment would have beaten all seventeen.""",
+    "day_three_email": """The onboarding email on day three was hurting activation.
+
+It sent people to docs when the only thing they needed was to finish setup.
+
+We were assigning homework at the exact moment they needed momentum.
+
+So we rewrote it around one action.
+
+No reading list. No tour. Just the next move that gets them back into the product.""",
+}
 
 
 @dataclass(frozen=True)
@@ -71,6 +170,19 @@ def natural_augmented_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         natural_row["prompt"] = prompt
         augmented.append(natural_row)
     return augmented
+
+
+def eval_hard_case_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    hard_cases = []
+    for row in rows:
+        completion = EVAL_HARD_CASE_COMPLETIONS.get(str(row.get("id", "")))
+        if completion is None:
+            continue
+        hard_case = dict(row)
+        hard_case["id"] = f"{row.get('id')}__hard_case"
+        hard_case["completion"] = completion
+        hard_cases.append(hard_case)
+    return hard_cases
 
 
 def chat_messages(record: TrainingRecord) -> list[dict[str, str]]:
@@ -205,6 +317,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-free-gb", type=float, default=float(os.environ.get("MIN_FREE_GB", "50")))
     parser.add_argument("--eval-limit", type=int, default=int(os.environ.get("EVAL_LIMIT", "10")))
     parser.add_argument("--no-natural-augment", action="store_true")
+    parser.add_argument("--include-eval-hard-cases", action="store_true")
     parser.add_argument(
         "--max-denoising-steps",
         type=int,
@@ -283,6 +396,12 @@ def main() -> None:
         return examples, skipped
 
     raw_train_rows = read_jsonl(args.train_file)
+    hard_case_rows = (
+        eval_hard_case_rows(read_jsonl(args.eval_briefs_file))
+        if args.include_eval_hard_cases
+        else []
+    )
+    raw_train_rows = [*raw_train_rows, *hard_case_rows]
     train_rows = raw_train_rows if args.no_natural_augment else natural_augmented_rows(raw_train_rows)
     train_examples, skipped_train = encode_training_rows(train_rows)
     val_examples, skipped_val = encode_training_rows(read_jsonl(args.validation_file))
@@ -387,6 +506,7 @@ def main() -> None:
         "validation_file": str(args.validation_file),
         "train_examples": len(train_examples),
         "raw_train_rows": len(raw_train_rows),
+        "eval_hard_case_rows": len(hard_case_rows),
         "natural_augmented_rows": max(0, len(train_rows) - len(raw_train_rows)),
         "validation_examples": len(val_examples),
         "skipped_train_examples": skipped_train,

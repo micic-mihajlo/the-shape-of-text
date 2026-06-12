@@ -5,10 +5,12 @@ from scripts.run_hf_diffusiongemma_training import (
     adapter_card,
     chat_messages,
     clean_generated_text,
+    eval_hard_case_rows,
     natural_augmented_rows,
     natural_prompt_from_row,
     record_from_row,
 )
+from shape_of_text.quality import founder_rewrite_quality_report
 
 
 def test_diffusiongemma_training_record_builds_chat_messages():
@@ -108,6 +110,28 @@ def test_natural_augmented_rows_adds_realistic_prompt_variant():
     assert augmented[1]["completion"] == "Final post."
 
 
+def test_eval_hard_case_rows_pass_founder_rewrite_quality():
+    rows = [
+        {
+            "id": "lm_studio_first_try",
+            "prompt": "Rewrite this rough post.",
+            "required_terms": ["LM Studio", "Gemma", "first try"],
+            "avoid_terms": ["small product update", "not flashy"],
+        },
+        {
+            "id": "unknown",
+            "prompt": "No hard case.",
+            "required_terms": [],
+        },
+    ]
+
+    hard_cases = eval_hard_case_rows(rows)
+    report = founder_rewrite_quality_report(hard_cases)
+
+    assert [row["id"] for row in hard_cases] == ["lm_studio_first_try__hard_case"]
+    assert report["ok"] is True
+
+
 def test_diffusiongemma_training_payload_runs_remote_a100_job():
     args = argparse.Namespace(
         repo_url="https://github.com/micic-mihajlo/the-shape-of-text.git",
@@ -125,6 +149,7 @@ def test_diffusiongemma_training_payload_runs_remote_a100_job():
         lora_alpha=64,
         eval_limit=10,
         max_denoising_steps=32,
+        include_eval_hard_cases=True,
         min_free_gb=50.0,
     )
 
@@ -142,6 +167,7 @@ def test_diffusiongemma_training_payload_runs_remote_a100_job():
     assert "--max-steps 160" in command
     assert "--learning-rate 0.0001" in command
     assert "--max-denoising-steps 32" in command
+    assert "--include-eval-hard-cases" in command
     assert "--min-free-gb 50.0" in command
 
 
@@ -162,6 +188,7 @@ def test_diffusiongemma_training_cli_command_uses_secret_flag():
         lora_alpha=64,
         eval_limit=10,
         max_denoising_steps=32,
+        include_eval_hard_cases=False,
         min_free_gb=50.0,
         cli=True,
     )
