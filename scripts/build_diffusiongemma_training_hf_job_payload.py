@@ -31,9 +31,11 @@ python3 scripts/run_hf_diffusiongemma_training.py \\
   --hub-model-id {shlex.quote(args.hub_model_id)} \\
   --max-steps {shlex.quote(str(args.max_steps))} \\
   --grad-accum {shlex.quote(str(args.grad_accum))} \\
+  --learning-rate {shlex.quote(str(args.learning_rate))} \\
   --lora-r {shlex.quote(str(args.lora_r))} \\
   --lora-alpha {shlex.quote(str(args.lora_alpha))} \\
   --eval-limit {shlex.quote(str(args.eval_limit))} \\
+  --max-denoising-steps {shlex.quote(str(args.max_denoising_steps))} \\
   --min-free-gb {shlex.quote(str(args.min_free_gb))}
 """.strip()
 
@@ -91,9 +93,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hub-model-id", default=DEFAULT_HUB_MODEL_ID)
     parser.add_argument("--max-steps", type=int, default=160)
     parser.add_argument("--grad-accum", type=int, default=4)
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--lora-r", type=int, default=32)
     parser.add_argument("--lora-alpha", type=int, default=64)
     parser.add_argument("--eval-limit", type=int, default=10)
+    parser.add_argument("--max-denoising-steps", type=int, default=32)
     parser.add_argument("--min-free-gb", type=float, default=50.0)
     parser.add_argument("--cli", action="store_true", help="Print an hf CLI command instead of JSON.")
     return parser.parse_args()

@@ -45,6 +45,34 @@ def record_from_row(row: dict[str, Any], *, fallback_id: str) -> TrainingRecord:
     )
 
 
+def natural_prompt_from_row(row: dict[str, Any]) -> str | None:
+    source_draft = str(row.get("source_draft", "")).strip()
+    if not source_draft:
+        return None
+    platform = str(row.get("platform") or "LinkedIn").strip()
+    return (
+        f"Rewrite this rough post into one finished founder-style {platform} post. "
+        "Preserve the point, the concrete facts, and the human rhythm.\n\n"
+        f"Rough draft:\n{source_draft}\n\n"
+        "Return only one finished post. No headings, options, hashtags, placeholders, or analysis. "
+        "Write 45-130 words in 3-7 short paragraphs with at least one short standalone line. "
+        "End cleanly."
+    )
+
+
+def natural_augmented_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    augmented = list(rows)
+    for index, row in enumerate(rows):
+        prompt = natural_prompt_from_row(row)
+        if not prompt:
+            continue
+        natural_row = dict(row)
+        natural_row["id"] = f"{row.get('id') or f'row-{index}'}__natural_prompt"
+        natural_row["prompt"] = prompt
+        augmented.append(natural_row)
+    return augmented
+
+
 def chat_messages(record: TrainingRecord) -> list[dict[str, str]]:
     return [
         {"role": "user", "content": record.prompt},
@@ -176,6 +204,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--t-low", type=float, default=float(os.environ.get("T_LOW", "0.1")))
     parser.add_argument("--min-free-gb", type=float, default=float(os.environ.get("MIN_FREE_GB", "50")))
     parser.add_argument("--eval-limit", type=int, default=int(os.environ.get("EVAL_LIMIT", "10")))
+    parser.add_argument("--no-natural-augment", action="store_true")
     parser.add_argument(
         "--max-denoising-steps",
         type=int,
@@ -253,7 +282,9 @@ def main() -> None:
             examples.append((prompt_ids, x0, mask, record.record_id))
         return examples, skipped
 
-    train_examples, skipped_train = encode_training_rows(read_jsonl(args.train_file))
+    raw_train_rows = read_jsonl(args.train_file)
+    train_rows = raw_train_rows if args.no_natural_augment else natural_augmented_rows(raw_train_rows)
+    train_examples, skipped_train = encode_training_rows(train_rows)
     val_examples, skipped_val = encode_training_rows(read_jsonl(args.validation_file))
     if len(train_examples) < args.min_train_examples:
         raise RuntimeError(
@@ -355,6 +386,8 @@ def main() -> None:
         "train_file": str(args.train_file),
         "validation_file": str(args.validation_file),
         "train_examples": len(train_examples),
+        "raw_train_rows": len(raw_train_rows),
+        "natural_augmented_rows": max(0, len(train_rows) - len(raw_train_rows)),
         "validation_examples": len(val_examples),
         "skipped_train_examples": skipped_train,
         "skipped_validation_examples": skipped_val,

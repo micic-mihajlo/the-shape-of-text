@@ -5,6 +5,8 @@ from scripts.run_hf_diffusiongemma_training import (
     adapter_card,
     chat_messages,
     clean_generated_text,
+    natural_augmented_rows,
+    natural_prompt_from_row,
     record_from_row,
 )
 
@@ -72,6 +74,40 @@ def test_adapter_card_has_hub_yaml_metadata():
     assert "Train examples used: 100" in card
 
 
+def test_natural_prompt_from_row_removes_scaffolding_but_keeps_source_draft():
+    prompt = natural_prompt_from_row(
+        {
+            "platform": "LinkedIn",
+            "source_draft": "The model loads in LM Studio but needs five retries.",
+        }
+    )
+
+    assert prompt is not None
+    assert "LM Studio" in prompt
+    assert "Must include these exact strings" not in prompt
+    assert "Avoid these phrases" not in prompt
+    assert "Return only one finished post" in prompt
+
+
+def test_natural_augmented_rows_adds_realistic_prompt_variant():
+    rows = [
+        {
+            "id": "x",
+            "prompt": "Original scaffolded prompt",
+            "completion": "Final post.",
+            "source_draft": "Rough source.",
+        }
+    ]
+
+    augmented = natural_augmented_rows(rows)
+
+    assert len(augmented) == 2
+    assert augmented[0]["prompt"] == "Original scaffolded prompt"
+    assert augmented[1]["id"] == "x__natural_prompt"
+    assert "Rough source." in augmented[1]["prompt"]
+    assert augmented[1]["completion"] == "Final post."
+
+
 def test_diffusiongemma_training_payload_runs_remote_a100_job():
     args = argparse.Namespace(
         repo_url="https://github.com/micic-mihajlo/the-shape-of-text.git",
@@ -84,9 +120,11 @@ def test_diffusiongemma_training_payload_runs_remote_a100_job():
         hub_model_id="micic-mihajlo/diffusiongemma-social-writer-lora",
         max_steps=160,
         grad_accum=4,
+        learning_rate=1e-4,
         lora_r=32,
         lora_alpha=64,
         eval_limit=10,
+        max_denoising_steps=32,
         min_free_gb=50.0,
     )
 
@@ -102,6 +140,8 @@ def test_diffusiongemma_training_payload_runs_remote_a100_job():
     assert "scripts/run_hf_diffusiongemma_training.py" in command
     assert "--hub-model-id micic-mihajlo/diffusiongemma-social-writer-lora" in command
     assert "--max-steps 160" in command
+    assert "--learning-rate 0.0001" in command
+    assert "--max-denoising-steps 32" in command
     assert "--min-free-gb 50.0" in command
 
 
@@ -117,9 +157,11 @@ def test_diffusiongemma_training_cli_command_uses_secret_flag():
         hub_model_id="micic-mihajlo/diffusiongemma-social-writer-lora",
         max_steps=160,
         grad_accum=4,
+        learning_rate=1e-4,
         lora_r=32,
         lora_alpha=64,
         eval_limit=10,
+        max_denoising_steps=32,
         min_free_gb=50.0,
         cli=True,
     )
