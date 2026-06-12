@@ -112,6 +112,87 @@ def test_diffusiongemma_cli_completion_strips_thought_channel_and_timing():
     assert clean_completion(raw, "prompt") == "Final answer."
 
 
+def test_diffusiongemma_cli_completion_strips_named_final_channel():
+    raw = "<|channel>final\nFinal answer.\n\ntotal time: 100ms\nthroughput: 5 tok/s"
+
+    assert clean_completion(raw, "prompt") == "Final answer."
+
+
+def test_diffusiongemma_cli_completion_extracts_draft_from_unclosed_thought_channel():
+    raw = """<|channel>thought
+*   Platform: LinkedIn.
+    *   Audience: startup founders.
+
+    *   *Draft 1:*
+        We just updated the empty state.
+
+        People used to get stuck there without knowing what to do next.
+
+        It was not a giant launch.
+
+        Users notice when the product stops making them guess.
+
+    *   *Check
+        Required terms are present.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "We just updated the empty state.\n\n"
+        "People used to get stuck there without knowing what to do next.\n\n"
+        "It was not a giant launch.\n\n"
+        "Users notice when the product stops making them guess."
+    )
+
+
+def test_diffusiongemma_cli_completion_extracts_paragraph_labels_from_thought_channel():
+    raw = """<|channel>thought
+*   *Paragraph 1:* The model finally loads in LM Studio.
+*   *Paragraph 2:* But the first answer still sounds like a template.
+*   *Paragraph 3:* That is not a win.
+*   *Paragraph 4:* The goal is Gemma writing well on the first try.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "The model finally loads in LM Studio.\n"
+        "But the first answer still sounds like a template.\n"
+        "That is not a win.\n"
+        "The goal is Gemma writing well on the first try."
+    )
+
+
+def test_colab_diffusiongemma_smoke_uses_larger_generation_budget(monkeypatch, tmp_path):
+    commands = []
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    llama_cli = tmp_path / "llama.cpp" / "build" / "bin" / "llama-diffusion-cli"
+    llama_cli.parent.mkdir(parents=True)
+    llama_cli.touch()
+    gguf_file = tmp_path / "models" / "diffusiongemma-26B-A4B-it-Q4_K_M.gguf"
+    gguf_file.parent.mkdir()
+    gguf_file.touch()
+
+    monkeypatch.setenv("COLAB_WORKDIR", str(tmp_path))
+    monkeypatch.setenv("REPO_DIR", str(repo_dir))
+    monkeypatch.setenv("SKIP_REPO_CLONE", "1")
+    monkeypatch.setattr(smoke, "run", lambda command, *, cwd=None: commands.append(command))
+    monkeypatch.setattr(smoke, "shell", lambda command, *, cwd=None: None)
+    monkeypatch.setattr(smoke, "install_repo", lambda repo_dir: None)
+    monkeypatch.setattr(smoke, "ensure_llama_cpp", lambda llama_cpp_dir: llama_cli)
+    monkeypatch.setattr(smoke, "download_gguf", lambda repo_id, filename, model_dir: gguf_file)
+    monkeypatch.setattr(smoke.subprocess, "run", lambda *args, **kwargs: argparse.Namespace(returncode=0))
+    monkeypatch.setattr(Path, "read_text", lambda self, encoding=None: "")
+
+    smoke.main()
+
+    generate_command = next(
+        command
+        for command in commands
+        if any("generate_diffusiongemma_llamacpp_cli_posts.py" in part for part in command)
+    )
+    assert generate_command[generate_command.index("--n-predict") + 1] == "768"
+    assert generate_command[generate_command.index("--request-timeout") + 1] == "720"
+
+
 def test_diffusiongemma_generator_file_entrypoint_imports_from_any_cwd(tmp_path):
     script = Path(__file__).resolve().parents[1] / "scripts/generate_diffusiongemma_llamacpp_posts.py"
 
