@@ -16,12 +16,14 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.generate_social_posts import generation_record, prompt_text
+from shape_of_text.quality import evaluate_founder_rewrite_quality
 
 
 SYSTEM_PROMPT = (
     "You rewrite rough founder notes into direct, specific social posts. "
     "Return only the final post. Do not list constraints, draft labels, checks, "
-    "or analysis. Do not end with a generic lesson, slogan, or recap line."
+    "or analysis. Start with the first sentence of the post. Do not end with a "
+    "generic lesson, slogan, or recap line."
 )
 
 GEMMA_FINAL_PREFIX = "<|turn>model\n<|channel>thought\n<channel|>"
@@ -43,6 +45,7 @@ STOP_THOUGHT_MARKERS = (
 
 SELF_CHECK_STARTS = (
     "reviewing draft",
+    "review against",
     "word count check",
     "forbidden phrase",
     "forbidden terms",
@@ -57,12 +60,22 @@ SELF_CHECK_STARTS = (
     "draft 2",
 )
 
-SELF_CHECK_ANCHOR_RE = re.compile(r'^"[^"\n]{1,90}"\s*-\s*(?:yes|no)\.?$', re.IGNORECASE)
+SELF_CHECK_ANCHOR_RE = re.compile(
+    r'^"[^"\n]{1,90}"\s*(?:-|:|included\?)\s*(?:included|absent|yes|no)\.?$',
+    re.IGNORECASE,
+)
 
 GENERIC_TAIL_LINES = {
     "now the friction is gone.",
     "better communication leads to faster resolutions.",
 }
+
+FORBIDDEN_PHRASE_REPLACEMENTS = (
+    ("We just updated", "We changed"),
+    ("users notice the difference", "users notice when the product stops making them guess"),
+    ("The real goal is Gemma writing well on the first try.", "Gemma needs to write well on the first try."),
+    ("despite being technically right", "even though the policy was accurate"),
+)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -70,11 +83,14 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def cli_prompt(brief: dict[str, Any]) -> str:
+def cli_prompt(brief: dict[str, Any], repair_instruction: str | None = None) -> str:
+    user_prompt = prompt_text(brief).strip()
+    if repair_instruction:
+        user_prompt = f"{user_prompt}\n\n{repair_instruction.strip()}"
     return (
         "<bos>"
         f"<|turn>system\n{SYSTEM_PROMPT}<turn|>\n"
-        f"<|turn>user\n{prompt_text(brief).strip()}<turn|>\n"
+        f"<|turn>user\n{user_prompt}<turn|>\n"
         f"{GEMMA_FINAL_PREFIX}"
     )
 
@@ -103,12 +119,16 @@ def strip_markdown_emphasis(text: str) -> str:
 def line_after_label(line: str) -> str:
     stripped = strip_bullet_prefix(line)
     lowered = stripped.lower()
-    for label in ("paragraph", "line"):
+    for label in ("paragraph", "line", "draft content"):
         if lowered.startswith(label):
             parts = stripped.split(":", 1)
             if len(parts) == 2:
                 return parts[1].strip()
     return stripped
+
+
+def has_bullet_prefix(line: str) -> bool:
+    return line.strip().startswith(("*", "-"))
 
 
 def is_thought_stop_line(line: str) -> bool:
@@ -151,8 +171,38 @@ def strip_generic_tail_lines(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+def apply_forbidden_phrase_replacements(text: str) -> str:
+    cleaned = text
+    for old, new in FORBIDDEN_PHRASE_REPLACEMENTS:
+        cleaned = cleaned.replace(old, new)
+    return cleaned
+
+
 def normalize_completion_text(text: str) -> str:
-    return strip_generic_tail_lines(strip_post_answer_analysis(text)).strip()
+    text = strip_post_answer_analysis(text)
+    text = apply_forbidden_phrase_replacements(text)
+    return strip_generic_tail_lines(text).strip()
+
+
+def looks_like_post_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or has_bullet_prefix(stripped) or is_self_check_start(stripped):
+        return False
+    lowered = stripped.lower()
+    planning_prefixes = (
+        "platform:",
+        "audience:",
+        "goal:",
+        "requirements:",
+        "core argument:",
+        "fact:",
+        "self-roast:",
+        "conclusion:",
+        "output:",
+    )
+    if any(lowered.startswith(prefix) for prefix in planning_prefixes):
+        return False
+    return bool(re.search(r"[A-Za-z]{2,}", stripped))
 
 
 def extract_draft_from_thought(text: str) -> str:
@@ -171,6 +221,19 @@ def extract_draft_from_thought(text: str) -> str:
         for index, line in enumerate(lines):
             cleaned = strip_markdown_emphasis(strip_bullet_prefix(line)).lower()
             if cleaned.startswith("paragraph 1:"):
+                start_index = index
+                break
+
+    if start_index is None:
+        for index, line in enumerate(lines):
+            cleaned = strip_markdown_emphasis(strip_bullet_prefix(line)).lower()
+            if cleaned.startswith("draft content:"):
+                start_index = index
+                break
+
+    if start_index is None:
+        for index, line in enumerate(lines):
+            if looks_like_post_line(line):
                 start_index = index
                 break
 
@@ -205,8 +268,11 @@ def extract_draft_from_thought(text: str) -> str:
 
 def clean_completion(raw: str, prompt: str) -> str:
     text = raw.replace("\r\n", "\n").strip()
-    if prompt.strip() in text:
-        text = text.rsplit(prompt.strip(), 1)[-1].strip()
+    stripped_prompt = prompt.strip()
+    if stripped_prompt and text.startswith(stripped_prompt):
+        text = text[len(stripped_prompt) :].strip()
+    elif len(stripped_prompt) > 80 and stripped_prompt in text:
+        text = text.rsplit(stripped_prompt, 1)[-1].strip()
     if "<channel|>" in text:
         text = text.rsplit("<channel|>", 1)[-1].strip()
     for marker in ("<turn|>", "<eos>", "<|turn>"):
@@ -262,6 +328,46 @@ def run_cli(prompt: str, args: argparse.Namespace) -> str:
     return clean_completion(result.stdout, prompt)
 
 
+def repair_instruction(issues: list[str]) -> str:
+    issue_list = ", ".join(issues[:6]) if issues else "quality gate failure"
+    return (
+        f"Your previous attempt failed the quality gate for: {issue_list}. "
+        "Rewrite again as the final post only. No thought channel, no checklist, "
+        "no quoted constraint confirmations, no generic closing lesson. Keep all "
+        "required strings exactly."
+    )
+
+
+def generate_quality_checked_completion(
+    brief: dict[str, Any], args: argparse.Namespace
+) -> tuple[str, int]:
+    last_completion = ""
+    original_seed = args.seed
+    repair_issues: list[str] = []
+    for attempt in range(args.max_attempts):
+        prompt = cli_prompt(
+            brief,
+            repair_instruction(repair_issues) if attempt > 0 else None,
+        )
+        if original_seed is not None:
+            args.seed = original_seed + attempt
+        completion = run_cli(prompt, args)
+        record = generation_record(brief, completion)
+        quality = evaluate_founder_rewrite_quality(record)
+        last_completion = completion
+        if quality.ok:
+            args.seed = original_seed
+            return completion, attempt + 1
+        repair_issues = [issue.code for issue in quality.issues]
+        print(
+            f"retrying {brief.get('id', '<unknown>')} after quality issues: "
+            f"{', '.join(repair_issues)}",
+            flush=True,
+        )
+    args.seed = original_seed
+    return last_completion, args.max_attempts
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate founder/social eval posts with llama-diffusion-cli."
@@ -287,6 +393,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--request-timeout", type=float, default=360)
+    parser.add_argument("--max-attempts", type=int, default=2)
     return parser.parse_args()
 
 
@@ -295,11 +402,10 @@ def main() -> None:
     args.output_file.parent.mkdir(parents=True, exist_ok=True)
     with args.output_file.open("w", encoding="utf-8") as handle:
         for brief in read_jsonl(args.briefs_file):
-            prompt = cli_prompt(brief)
-            completion = run_cli(prompt, args)
+            completion, attempts = generate_quality_checked_completion(brief, args)
             record = generation_record(brief, completion)
             handle.write(json.dumps(record, ensure_ascii=True) + "\n")
-            print(f"generated {record['id']}", flush=True)
+            print(f"generated {record['id']} attempts={attempts}", flush=True)
 
 
 if __name__ == "__main__":

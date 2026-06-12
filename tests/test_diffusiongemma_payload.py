@@ -5,7 +5,11 @@ import subprocess
 import sys
 
 from scripts.build_diffusiongemma_hf_job_payload import build_payload
-from scripts.generate_diffusiongemma_llamacpp_cli_posts import clean_completion, cli_prompt
+from scripts.generate_diffusiongemma_llamacpp_cli_posts import (
+    clean_completion,
+    cli_prompt,
+    generate_quality_checked_completion,
+)
 from scripts.generate_diffusiongemma_llamacpp_posts import chat_payload, completion_from_response
 import scripts.run_colab_diffusiongemma_smoke as smoke
 
@@ -137,7 +141,7 @@ def test_diffusiongemma_cli_completion_extracts_draft_from_unclosed_thought_chan
 """
 
     assert clean_completion(raw, "prompt") == (
-        "We just updated the empty state.\n\n"
+        "We changed the empty state.\n\n"
         "People used to get stuck there without knowing what to do next.\n\n"
         "It was not a giant launch.\n\n"
         "Users notice when the product stops making them guess."
@@ -180,6 +184,30 @@ Word count check: 54 words.
     )
 
 
+def test_diffusiongemma_cli_completion_strips_included_question_checklist():
+    raw = """The model finally loads in LM Studio, but the output still feels like a template.
+
+That isn't a win.
+
+If a local model requires five retries and a perfect prompt just to write a normal post, the training is insufficient.
+
+The real goal is Gemma writing well on the first try.
+
+Review against constraints:
+"LM Studio" included? Yes.
+"Gemma" included? Yes.
+Word count: 52 words.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "The model finally loads in LM Studio, but the output still feels like a template.\n\n"
+        "That isn't a win.\n\n"
+        "If a local model requires five retries and a perfect prompt just to write a normal post, "
+        "the training is insufficient.\n\n"
+        "Gemma needs to write well on the first try."
+    )
+
+
 def test_diffusiongemma_cli_completion_strips_reviewing_draft_tail():
     raw = """We moved one button and fixed the empty state.
 
@@ -199,6 +227,33 @@ Reviewing Draft 1 against prohibitions:
     )
 
 
+def test_diffusiongemma_cli_completion_extracts_indented_post_from_thought_channel():
+    raw = """<|channel>thought
+*   Platform: LinkedIn.
+    *   Audience: Startup founders.
+    *   Requirements:
+        *   Include exact strings.
+
+    The engineers on my team who use AI the most aren't the ones shipping the best work.
+
+    Rivet told me this.
+
+    But Rivet was built with mostly AI-generated code, and now 2,300 creators are using it.
+
+    Either Rivet is wrong, or the product is roasting itself.
+
+    *   "Rivet": Included.
+    *   "2,300": Included.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "The engineers on my team who use AI the most aren't the ones shipping the best work.\n\n"
+        "Rivet told me this.\n\n"
+        "But Rivet was built with mostly AI-generated code, and now 2,300 creators are using it.\n\n"
+        "Either Rivet is wrong, or the product is roasting itself."
+    )
+
+
 def test_diffusiongemma_cli_completion_strips_generic_tail_slogans():
     raw = """Our support macro for refund policy was technically right but failed.
 
@@ -215,6 +270,61 @@ Better communication leads to faster resolutions.
         "22 tickets needed a second reply because the tone felt robotic and defensive.\n\n"
         "We rewrote the script in plain language."
     )
+
+
+def test_diffusiongemma_cli_completion_normalizes_known_forbidden_phrases():
+    raw = """We just updated the empty state.
+
+But users notice the difference.
+
+The real goal is Gemma writing well on the first try.
+
+Our support macro failed despite being technically right.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "We changed the empty state.\n\n"
+        "But users notice when the product stops making them guess.\n\n"
+        "Gemma needs to write well on the first try.\n\n"
+        "Our support macro failed even though the policy was accurate."
+    )
+
+
+def test_diffusiongemma_cli_generation_retries_failed_quality(monkeypatch):
+    attempts = []
+
+    def fake_run_cli(prompt, args):
+        attempts.append((prompt, args.seed))
+        if len(attempts) == 1:
+            return "<|channel>thought\n* Platform: LinkedIn."
+        return (
+            "The model finally loads in LM Studio, but the output still feels like a template.\n\n"
+            "That isn't a win.\n\n"
+            "If a local model needs five retries and a perfect prompt, the training is insufficient.\n\n"
+            "Gemma needs to write well on the first try."
+        )
+
+    monkeypatch.setattr(
+        "scripts.generate_diffusiongemma_llamacpp_cli_posts.run_cli",
+        fake_run_cli,
+    )
+    args = argparse.Namespace(max_attempts=2, seed=7)
+    completion, count = generate_quality_checked_completion(
+        {
+            "id": "lm_studio_first_try",
+            "prompt": "Rewrite this.",
+            "platform": "LinkedIn",
+            "required_terms": ["LM Studio", "Gemma", "first try"],
+        },
+        args,
+    )
+
+    assert count == 2
+    assert args.seed == 7
+    assert attempts[0][1] == 7
+    assert attempts[1][1] == 8
+    assert "previous attempt failed" in attempts[1][0]
+    assert completion.endswith("first try.")
 
 
 def test_colab_diffusiongemma_smoke_uses_larger_generation_budget(monkeypatch, tmp_path):
