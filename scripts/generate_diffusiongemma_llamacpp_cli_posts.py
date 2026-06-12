@@ -22,6 +22,8 @@ SYSTEM_PROMPT = (
     "Return only the final post."
 )
 
+GEMMA_FINAL_PREFIX = "<|turn>model\n<|channel>thought\n<channel|>"
+
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
@@ -29,15 +31,30 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def cli_prompt(brief: dict[str, Any]) -> str:
-    return f"{SYSTEM_PROMPT}\n\n{prompt_text(brief).strip()}\n\nFinal post:\n"
+    return (
+        "<bos>"
+        f"<|turn>system\n{SYSTEM_PROMPT}<turn|>\n"
+        f"<|turn>user\n{prompt_text(brief).strip()}<turn|>\n"
+        f"{GEMMA_FINAL_PREFIX}"
+    )
 
 
 def clean_completion(raw: str, prompt: str) -> str:
     text = raw.replace("\r\n", "\n").strip()
     if prompt.strip() in text:
         text = text.rsplit(prompt.strip(), 1)[-1].strip()
-    if "Final post:" in text:
-        text = text.rsplit("Final post:", 1)[-1].strip()
+    if "<channel|>" in text:
+        text = text.rsplit("<channel|>", 1)[-1].strip()
+    for marker in ("<turn|>", "<eos>", "<|turn>"):
+        if marker in text:
+            text = text.split(marker, 1)[0].strip()
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("total time:", "throughput:")):
+            break
+        lines.append(line)
+    text = "\n".join(lines)
     return text.strip()
 
 

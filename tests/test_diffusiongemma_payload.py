@@ -86,15 +86,30 @@ def test_diffusiongemma_default_gguf_filename_matches_unsloth_repo():
 def test_diffusiongemma_cli_prompt_requests_final_post_only():
     prompt = cli_prompt({"id": "x", "prompt": "Rewrite this.", "platform": "LinkedIn"})
 
+    assert prompt.startswith("<bos><|turn>system\n")
     assert "Return only the final post" in prompt
-    assert "Final post:" in prompt
+    assert "<|turn>user\n" in prompt
+    assert prompt.endswith("<|turn>model\n<|channel>thought\n<channel|>")
 
 
 def test_diffusiongemma_cli_completion_removes_echoed_prompt():
-    prompt = "Prompt body\n\nFinal post:\n"
-    raw = f"logs\n{prompt}This is the post."
+    prompt = "<bos><|turn>user\nPrompt body<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
+    raw = (
+        f"logs\n{prompt}"
+        "This is the post.\n<turn|>\n"
+        "total time: 100ms\nthroughput: 5 tok/s"
+    )
 
     assert clean_completion(raw, prompt) == "This is the post."
+
+
+def test_diffusiongemma_cli_completion_strips_thought_channel_and_timing():
+    raw = (
+        "<|channel>thought\nplanning text\n<channel|>"
+        "Final answer.\n\ntotal time: 100ms\nthroughput: 5 tok/s"
+    )
+
+    assert clean_completion(raw, "prompt") == "Final answer."
 
 
 def test_diffusiongemma_generator_file_entrypoint_imports_from_any_cwd(tmp_path):
