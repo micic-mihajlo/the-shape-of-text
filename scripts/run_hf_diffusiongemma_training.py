@@ -76,6 +76,10 @@ def clean_generated_text(text: Any, prompt: str) -> str:
     for marker in ("model\n", "assistant\n", "Final answer:", "Draft:"):
         if marker in cleaned:
             cleaned = cleaned.split(marker)[-1]
+    first_newline = cleaned.find("\n")
+    first_line = cleaned if first_newline == -1 else cleaned[:first_newline]
+    if first_line.strip().casefold() in {"thought", "final", "analysis"}:
+        cleaned = cleaned[first_newline + 1 :].strip() if first_newline != -1 else ""
     lines = []
     for line in cleaned.splitlines():
         stripped = line.strip()

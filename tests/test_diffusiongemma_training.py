@@ -52,6 +52,10 @@ def test_clean_generated_text_accepts_decoded_list():
     assert clean_generated_text(["First line.", "Second line."], "prompt") == "First line.\nSecond line."
 
 
+def test_clean_generated_text_strips_leading_channel_name():
+    assert clean_generated_text("thought\nThis is the post.", "prompt") == "This is the post."
+
+
 def test_adapter_card_has_hub_yaml_metadata():
     card = adapter_card(
         base_model="unsloth/diffusiongemma-26B-A4B-it",
