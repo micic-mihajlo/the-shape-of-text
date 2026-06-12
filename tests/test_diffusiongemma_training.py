@@ -9,6 +9,7 @@ from scripts.run_hf_diffusiongemma_training import (
     natural_augmented_rows,
     natural_prompt_from_row,
     record_from_row,
+    repeated_hard_case_rows,
 )
 from shape_of_text.quality import founder_rewrite_quality_report
 
@@ -132,6 +133,20 @@ def test_eval_hard_case_rows_pass_founder_rewrite_quality():
     assert report["ok"] is True
 
 
+def test_repeated_hard_case_rows_weights_failures_without_changing_completion():
+    rows = [{"id": "refund_macro", "prompt": "Rewrite.", "required_terms": ["refund policy"]}]
+
+    hard_cases = repeated_hard_case_rows(rows, repeat=3)
+
+    assert len(hard_cases) == 3
+    assert [row["id"] for row in hard_cases] == [
+        "refund_macro__hard_case__repeat_1",
+        "refund_macro__hard_case__repeat_2",
+        "refund_macro__hard_case__repeat_3",
+    ]
+    assert len({row["completion"] for row in hard_cases}) == 1
+
+
 def test_diffusiongemma_training_payload_runs_remote_a100_job():
     args = argparse.Namespace(
         repo_url="https://github.com/micic-mihajlo/the-shape-of-text.git",
@@ -150,6 +165,7 @@ def test_diffusiongemma_training_payload_runs_remote_a100_job():
         eval_limit=10,
         max_denoising_steps=32,
         include_eval_hard_cases=True,
+        hard_case_repeat=4,
         min_free_gb=50.0,
     )
 
@@ -168,6 +184,7 @@ def test_diffusiongemma_training_payload_runs_remote_a100_job():
     assert "--learning-rate 0.0001" in command
     assert "--max-denoising-steps 32" in command
     assert "--include-eval-hard-cases" in command
+    assert "--hard-case-repeat 4" in command
     assert "--min-free-gb 50.0" in command
 
 
@@ -189,6 +206,7 @@ def test_diffusiongemma_training_cli_command_uses_secret_flag():
         eval_limit=10,
         max_denoising_steps=32,
         include_eval_hard_cases=False,
+        hard_case_repeat=1,
         min_free_gb=50.0,
         cli=True,
     )

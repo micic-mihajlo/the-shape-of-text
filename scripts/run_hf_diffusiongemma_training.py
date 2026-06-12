@@ -185,6 +185,17 @@ def eval_hard_case_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return hard_cases
 
 
+def repeated_hard_case_rows(rows: list[dict[str, Any]], *, repeat: int) -> list[dict[str, Any]]:
+    hard_cases = eval_hard_case_rows(rows)
+    repeated = []
+    for repeat_index in range(max(0, repeat)):
+        for row in hard_cases:
+            hard_case = dict(row)
+            hard_case["id"] = f"{row.get('id')}__repeat_{repeat_index + 1}"
+            repeated.append(hard_case)
+    return repeated
+
+
 def chat_messages(record: TrainingRecord) -> list[dict[str, str]]:
     return [
         {"role": "user", "content": record.prompt},
@@ -318,6 +329,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-limit", type=int, default=int(os.environ.get("EVAL_LIMIT", "10")))
     parser.add_argument("--no-natural-augment", action="store_true")
     parser.add_argument("--include-eval-hard-cases", action="store_true")
+    parser.add_argument("--hard-case-repeat", type=int, default=int(os.environ.get("HARD_CASE_REPEAT", "1")))
     parser.add_argument(
         "--max-denoising-steps",
         type=int,
@@ -397,7 +409,7 @@ def main() -> None:
 
     raw_train_rows = read_jsonl(args.train_file)
     hard_case_rows = (
-        eval_hard_case_rows(read_jsonl(args.eval_briefs_file))
+        repeated_hard_case_rows(read_jsonl(args.eval_briefs_file), repeat=args.hard_case_repeat)
         if args.include_eval_hard_cases
         else []
     )
@@ -507,6 +519,7 @@ def main() -> None:
         "train_examples": len(train_examples),
         "raw_train_rows": len(raw_train_rows),
         "eval_hard_case_rows": len(hard_case_rows),
+        "hard_case_repeat": args.hard_case_repeat if args.include_eval_hard_cases else 0,
         "natural_augmented_rows": max(0, len(train_rows) - len(raw_train_rows)),
         "validation_examples": len(val_examples),
         "skipped_train_examples": skipped_train,

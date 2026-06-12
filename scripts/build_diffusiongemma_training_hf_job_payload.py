@@ -39,7 +39,10 @@ python3 scripts/run_hf_diffusiongemma_training.py \\
   --min-free-gb {shlex.quote(str(args.min_free_gb))}
 """.strip()
     if args.include_eval_hard_cases:
-        command += " \\\n  --include-eval-hard-cases"
+        command += (
+            " \\\n  --include-eval-hard-cases"
+            f" \\\n  --hard-case-repeat {shlex.quote(str(args.hard_case_repeat))}"
+        )
     return command
 
 
@@ -102,6 +105,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-limit", type=int, default=10)
     parser.add_argument("--max-denoising-steps", type=int, default=32)
     parser.add_argument("--include-eval-hard-cases", action="store_true")
+    parser.add_argument("--hard-case-repeat", type=int, default=1)
     parser.add_argument("--min-free-gb", type=float, default=50.0)
     parser.add_argument("--cli", action="store_true", help="Print an hf CLI command instead of JSON.")
     return parser.parse_args()
