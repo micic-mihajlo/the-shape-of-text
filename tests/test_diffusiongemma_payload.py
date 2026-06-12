@@ -1,8 +1,10 @@
 import argparse
 import json
+from pathlib import Path
 
 from scripts.build_diffusiongemma_hf_job_payload import build_payload
 from scripts.generate_diffusiongemma_llamacpp_posts import chat_payload, completion_from_response
+import scripts.run_colab_diffusiongemma_smoke as smoke
 
 
 def test_diffusiongemma_hf_payload_runs_remote_smoke():
@@ -49,3 +51,23 @@ def test_completion_from_openai_compatible_response():
     response = {"choices": [{"message": {"content": "  Done.  "}}]}
 
     assert completion_from_response(response) == "Done."
+
+
+def test_llamacpp_build_targets_a100_cuda_arch_by_default(monkeypatch, tmp_path):
+    commands = []
+    llama_dir = tmp_path / "llama.cpp"
+    server = llama_dir / "build" / "bin" / "llama-server"
+    server.parent.mkdir(parents=True)
+    server.touch()
+
+    def fake_run(command, *, cwd=None):
+        commands.append(command)
+
+    monkeypatch.setattr(smoke.shutil, "which", lambda name: "/usr/local/cuda/bin/nvcc")
+    monkeypatch.setattr(smoke, "run", fake_run)
+
+    assert smoke.ensure_llama_cpp(Path(llama_dir)) == server
+
+    cmake_configure = commands[0]
+    assert "-DCMAKE_CUDA_ARCHITECTURES=80" in cmake_configure
+    assert "-DGGML_CUDA_ARCHITECTURES=native" not in cmake_configure

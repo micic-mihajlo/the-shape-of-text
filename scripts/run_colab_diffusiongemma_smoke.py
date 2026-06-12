@@ -71,6 +71,7 @@ def ensure_llama_cpp(llama_cpp_dir: Path) -> Path:
             "CUDA Toolkit was not found. Switch Colab to a GPU runtime and reconnect before "
             "running the DiffusionGemma smoke path."
         )
+    cuda_arch = env("CMAKE_CUDA_ARCHITECTURES", "80")
     run(
         [
             "cmake",
@@ -82,7 +83,7 @@ def ensure_llama_cpp(llama_cpp_dir: Path) -> Path:
             "Ninja",
             "-DCMAKE_BUILD_TYPE=Release",
             cuda_flag,
-            "-DGGML_CUDA_ARCHITECTURES=native",
+            f"-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}",
         ],
         cwd=llama_cpp_dir,
     )
