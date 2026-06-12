@@ -56,7 +56,11 @@ def eval_prompt(row: dict[str, Any]) -> str:
     return str(row.get("prompt", "")).strip()
 
 
-def clean_generated_text(text: str, prompt: str) -> str:
+def clean_generated_text(text: Any, prompt: str) -> str:
+    if isinstance(text, (list, tuple)):
+        text = "\n".join(str(part) for part in text)
+    else:
+        text = str(text)
     cleaned = text.replace("\r\n", "\n").strip()
     markers = (
         "<|channel>final",
@@ -375,6 +379,21 @@ def main() -> None:
         encoding="utf-8",
     )
 
+    api = None
+    if not args.no_push:
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            raise RuntimeError("HF_TOKEN is required to push the trained adapter.")
+        api = HfApi(token=token)
+        api.create_repo(repo_id=args.hub_model_id, repo_type="model", exist_ok=True)
+        api.upload_folder(
+            repo_id=args.hub_model_id,
+            repo_type="model",
+            folder_path=str(args.output_dir),
+            commit_message="Upload trained DiffusionGemma social writer LoRA",
+        )
+        print(f"Uploaded trained adapter to https://huggingface.co/{args.hub_model_id}", flush=True)
+
     eval_rows = read_jsonl(args.eval_briefs_file)[: args.eval_limit]
     generations = []
     model.eval()
@@ -418,19 +437,14 @@ def main() -> None:
     )
     print(json.dumps({"quality": quality}, sort_keys=True), flush=True)
 
-    if not args.no_push:
-        token = os.environ.get("HF_TOKEN")
-        if not token:
-            raise RuntimeError("HF_TOKEN is required to push the trained adapter.")
-        api = HfApi(token=token)
-        api.create_repo(repo_id=args.hub_model_id, repo_type="model", exist_ok=True)
+    if api is not None:
         api.upload_folder(
             repo_id=args.hub_model_id,
             repo_type="model",
             folder_path=str(args.output_dir),
-            commit_message="Upload trained DiffusionGemma social writer LoRA",
+            commit_message="Upload DiffusionGemma social writer eval artifacts",
         )
-        print(f"Uploaded adapter to https://huggingface.co/{args.hub_model_id}", flush=True)
+        print(f"Uploaded eval artifacts to https://huggingface.co/{args.hub_model_id}", flush=True)
 
 
 if __name__ == "__main__":
