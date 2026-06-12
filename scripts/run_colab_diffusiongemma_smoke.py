@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 
@@ -13,6 +12,7 @@ import sys
 DEFAULT_REPO_URL = "https://github.com/micic-mihajlo/the-shape-of-text.git"
 DEFAULT_GIT_REF = "mihajlo/social-style-alignment-framework"
 DEFAULT_GGUF_REPO = "unsloth/diffusiongemma-26B-A4B-it-GGUF"
+DEFAULT_LLAMA_CPP_DIFFUSION_REF = "pull/24423/head"
 PYTHON = sys.executable
 
 
@@ -64,6 +64,12 @@ def ensure_llama_cpp(llama_cpp_dir: Path) -> Path:
                 str(llama_cpp_dir),
             ]
         )
+    diffusion_ref = env("LLAMA_CPP_DIFFUSION_REF", DEFAULT_LLAMA_CPP_DIFFUSION_REF)
+    if diffusion_ref.startswith("pull/"):
+        run(["git", "fetch", "origin", f"{diffusion_ref}:diffusiongemma"], cwd=llama_cpp_dir)
+        run(["git", "checkout", "diffusiongemma"], cwd=llama_cpp_dir)
+    else:
+        run(["git", "checkout", diffusion_ref], cwd=llama_cpp_dir)
     build_dir = llama_cpp_dir / "build"
     cuda_flag = "-DGGML_CUDA=ON" if shutil.which("nvcc") else "-DGGML_CUDA=OFF"
     if cuda_flag.endswith("OFF") and env_flag("REQUIRE_CUDA", True):
@@ -87,58 +93,49 @@ def ensure_llama_cpp(llama_cpp_dir: Path) -> Path:
         ],
         cwd=llama_cpp_dir,
     )
-    run(["cmake", "--build", "build", "--target", "llama-server", "-j"], cwd=llama_cpp_dir)
-    server = build_dir / "bin" / "llama-server"
-    if not server.exists():
-        server = build_dir / "llama-server"
-    if not server.exists():
-        raise FileNotFoundError("llama-server build output was not found")
-    return server
+    run(["cmake", "--build", "build", "--target", "llama-diffusion-cli", "-j"], cwd=llama_cpp_dir)
+    cli = build_dir / "bin" / "llama-diffusion-cli"
+    if not cli.exists():
+        cli = build_dir / "examples" / "diffusion" / "llama-diffusion-cli"
+    if not cli.exists():
+        raise FileNotFoundError("llama-diffusion-cli build output was not found")
+    return cli
 
 
-def launch_server(server: Path, *, gguf_repo: str, gguf_quant: str, port: str) -> subprocess.Popen:
-    command = [
-        str(server),
-        "-hf",
-        f"{gguf_repo}:{gguf_quant}",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        port,
-        "--ctx-size",
-        env("LLAMA_CTX_SIZE", "8192"),
-        "--parallel",
-        env("LLAMA_PARALLEL", "1"),
-        "--threads",
-        env("LLAMA_THREADS", "8"),
-        "--n-gpu-layers",
-        env("LLAMA_N_GPU_LAYERS", "999"),
-        "--jinja",
-    ]
-    print("+ " + " ".join(shlex.quote(part) for part in command), flush=True)
-    return subprocess.Popen(command)
+def default_gguf_filename(gguf_quant: str) -> str:
+    return f"diffusiongemma-26B-A4B-it-{gguf_quant}.gguf"
 
 
-def terminate(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
-    process.send_signal(signal.SIGTERM)
+def download_gguf(repo_id: str, filename: str, model_dir: Path) -> Path:
     try:
-        process.wait(timeout=20)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=20)
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        run([PYTHON, "-m", "pip", "install", "huggingface_hub"])
+        from huggingface_hub import hf_hub_download
+
+    token = os.environ.get("HF_TOKEN") or None
+    print(f"Downloading GGUF: repo={repo_id} file={filename}", flush=True)
+    path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        local_dir=str(model_dir),
+        token=token,
+    )
+    resolved = Path(path).resolve()
+    print(f"Downloaded GGUF to {resolved}", flush=True)
+    return resolved
 
 
 def main() -> None:
     workdir = Path(env("COLAB_WORKDIR", "/content")).resolve()
     repo_dir = Path(env("REPO_DIR", str(workdir / "the-shape-of-text"))).resolve()
     llama_cpp_dir = Path(env("LLAMA_CPP_DIR", str(workdir / "llama.cpp"))).resolve()
+    model_dir = Path(env("DIFFUSIONGEMMA_MODEL_DIR", str(workdir / "models"))).resolve()
     repo_url = env("REPO_URL", DEFAULT_REPO_URL)
     git_ref = env("GIT_REF", DEFAULT_GIT_REF)
     gguf_repo = env("DIFFUSIONGEMMA_GGUF_REPO", DEFAULT_GGUF_REPO)
     gguf_quant = env("DIFFUSIONGEMMA_GGUF_QUANT", "Q4_K_M")
-    port = env("LLAMA_SERVER_PORT", "8000")
+    gguf_file = env("DIFFUSIONGEMMA_GGUF_FILE", default_gguf_filename(gguf_quant))
     generated_file = workdir / "diffusiongemma_founder_posts.jsonl"
     quality_report = workdir / "diffusiongemma_founder_quality_report.json"
 
@@ -160,43 +157,44 @@ def main() -> None:
         cwd=repo_dir,
     )
 
-    server = ensure_llama_cpp(llama_cpp_dir)
-    process = launch_server(server, gguf_repo=gguf_repo, gguf_quant=gguf_quant, port=port)
-    try:
-        run(
+    cli = ensure_llama_cpp(llama_cpp_dir)
+    model_file = download_gguf(gguf_repo, gguf_file, model_dir)
+    run(
+        [
+            PYTHON,
+            "scripts/generate_diffusiongemma_llamacpp_cli_posts.py",
+            "--cli",
+            str(cli),
+            "--model-file",
+            str(model_file),
+            "--briefs-file",
+            "configs/founder_rewrite_eval_briefs.jsonl",
+            "--output-file",
+            str(generated_file),
+            "--n-predict",
+            env("GENERATION_N_PREDICT", "220"),
+            "--n-gpu-layers",
+            env("LLAMA_N_GPU_LAYERS", "99"),
+            "--temperature",
+            env("GENERATION_TEMPERATURE", "0.4"),
+            "--top-p",
+            env("GENERATION_TOP_P", "0.9"),
+        ],
+        cwd=repo_dir,
+    )
+    quality_ok = (
+        subprocess.run(
             [
                 PYTHON,
-                "scripts/generate_diffusiongemma_llamacpp_posts.py",
-                "--endpoint",
-                f"http://127.0.0.1:{port}/v1/chat/completions",
-                "--briefs-file",
-                "configs/founder_rewrite_eval_briefs.jsonl",
-                "--output-file",
+                "scripts/check_founder_rewrite_quality.py",
                 str(generated_file),
-                "--temperature",
-                env("GENERATION_TEMPERATURE", "0.4"),
-                "--top-p",
-                env("GENERATION_TOP_P", "0.9"),
-                "--server-timeout",
-                env("SERVER_TIMEOUT", "1200"),
+                "--output-file",
+                str(quality_report),
             ],
             cwd=repo_dir,
-        )
-        quality_ok = (
-            subprocess.run(
-                [
-                    PYTHON,
-                    "scripts/check_founder_rewrite_quality.py",
-                    str(generated_file),
-                    "--output-file",
-                    str(quality_report),
-                ],
-                cwd=repo_dir,
-            ).returncode
-            == 0
-        )
-    finally:
-        terminate(process)
+        ).returncode
+        == 0
+    )
 
     print("DIFFUSIONGEMMA_POSTS_JSONL_BEGIN", flush=True)
     print(generated_file.read_text(encoding="utf-8"), flush=True)

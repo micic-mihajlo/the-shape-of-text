@@ -38,9 +38,14 @@ Do not run this on the laptop. Use a Colab GPU runtime.
 !python scripts/run_colab_diffusiongemma_smoke.py
 ```
 
-The script clones the repo into Colab, builds `llama.cpp` with CUDA, launches
-`llama-server` against the Unsloth GGUF, generates founder rewrite eval posts,
-and fails if `scripts/check_founder_rewrite_quality.py` rejects any output.
+The script clones the repo into Colab, builds the DiffusionGemma `llama.cpp`
+PR (`pull/24423/head`) with CUDA, downloads the Unsloth GGUF, runs
+`llama-diffusion-cli` for each founder rewrite eval brief, and fails if
+`scripts/check_founder_rewrite_quality.py` rejects any output.
+
+The standard `llama-server` / OpenAI-compatible runner is intentionally not
+used here: current mainline builds fail to load this GGUF with
+`unknown model architecture: 'diffusion-gemma'`.
 
 ## Hugging Face Jobs Smoke Payload
 
