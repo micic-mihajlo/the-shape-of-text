@@ -266,7 +266,7 @@ Better communication leads to faster resolutions.
 """
 
     assert clean_completion(raw, "prompt") == (
-        "Our support macro for refund policy was technically right but failed.\n\n"
+        "Our support macro for refund policy was accurate but failed.\n\n"
         "22 tickets needed a second reply because the tone felt robotic and defensive.\n\n"
         "We rewrote the script in plain language."
     )
@@ -280,13 +280,32 @@ But users notice the difference.
 The goal is Gemma writing well on first try.
 
 Our support macro failed despite being technically right.
+
+The support macro for refund policy was technically correct but bad.
 """
 
     assert clean_completion(raw, "prompt") == (
         "We changed the empty state.\n\n"
         "But users notice when the product stops making them guess.\n\n"
         "Gemma needs to write well on the first try.\n\n"
-        "Our support macro failed even though the policy was accurate."
+        "Our support macro failed even though the policy was accurate.\n\n"
+        "The support macro for refund policy was accurate but bad."
+    )
+
+
+def test_diffusiongemma_cli_completion_strips_numbered_paragraph_labels():
+    raw = """P1: We changed the pricing page by making the free plan obvious.
+P2: Signups increased 14%.
+P3: It was not a funnel trick. (Standalone-ish)
+P4: People were hesitating because they could not tell what was included.
+P5: Transparency wins.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "We changed the pricing page by making the free plan obvious.\n"
+        "Signups increased 14%.\n"
+        "It was not a funnel trick.\n"
+        "People were hesitating because they could not tell what was included."
     )
 
 

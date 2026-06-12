@@ -68,12 +68,17 @@ SELF_CHECK_ANCHOR_RE = re.compile(
 GENERIC_TAIL_LINES = {
     "now the friction is gone.",
     "better communication leads to faster resolutions.",
+    "transparency wins.",
 }
 
 FORBIDDEN_PHRASE_REPLACEMENTS = (
     ("We just updated", "We changed"),
     ("users notice the difference", "users notice when the product stops making them guess"),
     ("despite being technically right", "even though the policy was accurate"),
+    ("technically correct", "accurate"),
+    ("technically accurate", "accurate"),
+    ("technically right", "accurate"),
+    ("technically perfect", "accurate"),
 )
 
 FORBIDDEN_REGEX_REPLACEMENTS = (
@@ -86,6 +91,9 @@ FORBIDDEN_REGEX_REPLACEMENTS = (
         "the standard is",
     ),
 )
+
+PARAGRAPH_LABEL_RE = re.compile(r"^\s*P\d+\s*:\s*", re.IGNORECASE)
+ASIDE_RE = re.compile(r"\s*\((?:Standalone-ish|Target:[^)]+)\)", re.IGNORECASE)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -190,8 +198,18 @@ def apply_forbidden_phrase_replacements(text: str) -> str:
     return cleaned
 
 
+def strip_paragraph_labels(text: str) -> str:
+    lines = []
+    for line in text.splitlines():
+        cleaned = PARAGRAPH_LABEL_RE.sub("", line)
+        cleaned = ASIDE_RE.sub("", cleaned)
+        lines.append(cleaned.rstrip())
+    return "\n".join(lines).strip()
+
+
 def normalize_completion_text(text: str) -> str:
     text = strip_post_answer_analysis(text)
+    text = strip_paragraph_labels(text)
     text = apply_forbidden_phrase_replacements(text)
     return strip_generic_tail_lines(text).strip()
 
