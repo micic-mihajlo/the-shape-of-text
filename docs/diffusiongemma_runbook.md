@@ -54,7 +54,11 @@ Generate a payload without touching local GPU:
 ```bash
 python scripts/build_diffusiongemma_hf_job_payload.py \
   --git-ref mihajlo/social-style-alignment-framework \
-  --artifact-repo micic-mihajlo/diffusiongemma-social-writing-artifacts \
+  --artifact-repo micic-mihajlo/gemma-4-12b-social-post-lora \
+  --artifact-repo-type model \
+  --artifact-path-prefix diffusiongemma-artifacts \
+  --skip-artifact-repo-create \
+  --artifact-create-pr \
   --run-id smoke-YYYYMMDD-HHMMSS \
   --detach \
   > outputs/hf-diffusiongemma-smoke-job.json
@@ -75,6 +79,9 @@ artifact folder containing:
 
 The default repo type is `dataset`. If the job token cannot create datasets,
 the uploader falls back to `model`, which still gives the run a durable Hub URL.
+If the token cannot push directly but can open Hub pull requests, target an
+existing repo and set `DIFFUSIONGEMMA_ARTIFACT_CREATE_REPO=0` plus
+`DIFFUSIONGEMMA_ARTIFACT_CREATE_PR=1`.
 That makes the remote gate auditable without keeping the Colab/HF job logs open.
 
 ## Fine-Tuning Direction

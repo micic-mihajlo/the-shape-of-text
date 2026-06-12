@@ -166,7 +166,11 @@ To create a Hugging Face Jobs payload for the same remote smoke test:
 ```bash
 python scripts/build_diffusiongemma_hf_job_payload.py \
   --git-ref YOUR_COMMITTED_SHA \
-  --artifact-repo micic-mihajlo/diffusiongemma-social-writing-artifacts \
+  --artifact-repo micic-mihajlo/gemma-4-12b-social-post-lora \
+  --artifact-repo-type model \
+  --artifact-path-prefix diffusiongemma-artifacts \
+  --skip-artifact-repo-create \
+  --artifact-create-pr \
   --run-id smoke-YYYYMMDD-HHMMSS \
   --detach \
   > outputs/hf-diffusiongemma-smoke-job.json
@@ -176,9 +180,11 @@ If the base DiffusionGemma GGUF clears the founder gate, use it as the hackathon
 runtime and avoid spending training credits. With `--artifact-repo`, the remote
 job also uploads generated posts, the quality report, and run metadata to the Hub
 for later comparison. The default target is a dataset repo, with a model-repo
-fallback for tokens that cannot create datasets. If the base model fails,
-fine-tuning must use a diffusion-aware trainer such as Unsloth's DiffusionGemma
-path or NeMo AutoModel, not the causal-LM trainer in this repo.
+fallback for tokens that cannot create datasets. If the token can only write via
+Hub pull request, pass `--skip-artifact-repo-create --artifact-create-pr` and
+target an existing repo. If the base model fails, fine-tuning must use a
+diffusion-aware trainer such as Unsloth's DiffusionGemma path or NeMo AutoModel,
+not the causal-LM trainer in this repo.
 
 ## Evaluation
 

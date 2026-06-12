@@ -29,6 +29,8 @@ export DIFFUSIONGEMMA_ARTIFACT_REPO={shlex.quote(args.artifact_repo)}
 export DIFFUSIONGEMMA_ARTIFACT_REPO_TYPE={shlex.quote(args.artifact_repo_type)}
 export DIFFUSIONGEMMA_ARTIFACT_FALLBACK_REPO_TYPE={shlex.quote(args.artifact_fallback_repo_type)}
 export DIFFUSIONGEMMA_ARTIFACT_PATH_PREFIX={shlex.quote(args.artifact_path_prefix)}
+export DIFFUSIONGEMMA_ARTIFACT_CREATE_REPO={shlex.quote("0" if args.skip_artifact_repo_create else "1")}
+export DIFFUSIONGEMMA_ARTIFACT_CREATE_PR={shlex.quote("1" if args.artifact_create_pr else "0")}
 export LLAMA_CPP_DIFFUSION_REF={shlex.quote(args.llama_cpp_ref)}
 export CMAKE_CUDA_ARCHITECTURES={shlex.quote(args.cuda_arch)}
 export GENERATION_N_PREDICT={shlex.quote(str(args.n_predict))}
@@ -76,6 +78,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifact-repo-type", default="dataset")
     parser.add_argument("--artifact-fallback-repo-type", default="model")
     parser.add_argument("--artifact-path-prefix", default="runs")
+    parser.add_argument("--skip-artifact-repo-create", action="store_true")
+    parser.add_argument("--artifact-create-pr", action="store_true")
     parser.add_argument(
         "--gguf-repo",
         default="unsloth/diffusiongemma-26B-A4B-it-GGUF",

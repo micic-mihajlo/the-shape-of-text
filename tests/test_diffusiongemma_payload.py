@@ -28,6 +28,8 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
         artifact_repo_type="dataset",
         artifact_fallback_repo_type="model",
         artifact_path_prefix="runs",
+        skip_artifact_repo_create=True,
+        artifact_create_pr=True,
         gguf_repo="unsloth/diffusiongemma-26B-A4B-it-GGUF",
         gguf_quant="Q4_K_M",
         llama_cpp_ref="pull/24423/head",
@@ -53,6 +55,8 @@ def test_diffusiongemma_hf_payload_runs_remote_smoke():
     assert "DIFFUSIONGEMMA_RUN_ID=test-run" in command
     assert "DIFFUSIONGEMMA_ARTIFACT_REPO=micic-mihajlo/diffusiongemma-social-writing-artifacts" in command
     assert "DIFFUSIONGEMMA_ARTIFACT_FALLBACK_REPO_TYPE=model" in command
+    assert "DIFFUSIONGEMMA_ARTIFACT_CREATE_REPO=0" in command
+    assert "DIFFUSIONGEMMA_ARTIFACT_CREATE_PR=1" in command
     assert "LLAMA_CPP_DIFFUSION_REF=pull/24423/head" in command
     assert "CMAKE_CUDA_ARCHITECTURES=80" in command
     assert "GENERATION_N_PREDICT=768" in command
@@ -153,6 +157,8 @@ def test_diffusiongemma_upload_artifact_folder_uses_run_path(monkeypatch, tmp_pa
     artifact_dir.mkdir()
     (artifact_dir / "README.md").write_text("---\nlicense: apache-2.0\n---\n", encoding="utf-8")
     monkeypatch.setenv("DIFFUSIONGEMMA_ARTIFACT_PATH_PREFIX", "runs")
+    monkeypatch.setenv("DIFFUSIONGEMMA_ARTIFACT_CREATE_REPO", "0")
+    monkeypatch.setenv("DIFFUSIONGEMMA_ARTIFACT_CREATE_PR", "1")
 
     remote_path = smoke.upload_artifact_folder(
         FakeApi(),
@@ -162,11 +168,10 @@ def test_diffusiongemma_upload_artifact_folder_uses_run_path(monkeypatch, tmp_pa
     )
 
     assert remote_path == "runs/run-1"
-    assert calls[0] == (
-        "create_repo",
-        {"repo_id": "micic-mihajlo/artifacts", "repo_type": "model", "exist_ok": True},
-    )
-    assert calls[2][1]["path_in_repo"] == "runs/run-1"
+    assert calls[0][0] == "upload_file"
+    assert calls[0][1]["create_pr"] is True
+    assert calls[1][1]["path_in_repo"] == "runs/run-1"
+    assert calls[1][1]["create_pr"] is True
 
 
 def test_diffusiongemma_cli_prompt_requests_final_post_only():

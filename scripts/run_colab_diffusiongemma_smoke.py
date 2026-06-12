@@ -226,13 +226,16 @@ def hub_repo_url(repo_id: str, repo_type: str) -> str:
 def upload_artifact_folder(api: object, *, repo_id: str, repo_type: str, artifact_dir: Path) -> str:
     path_prefix = env("DIFFUSIONGEMMA_ARTIFACT_PATH_PREFIX", "runs").strip("/")
     remote_path = f"{path_prefix}/{artifact_dir.name}" if path_prefix else artifact_dir.name
-    api.create_repo(repo_id=repo_id, repo_type=repo_type, exist_ok=True)
+    create_pr = env_flag("DIFFUSIONGEMMA_ARTIFACT_CREATE_PR", False)
+    if env_flag("DIFFUSIONGEMMA_ARTIFACT_CREATE_REPO", True):
+        api.create_repo(repo_id=repo_id, repo_type=repo_type, exist_ok=True)
     api.upload_file(
         repo_id=repo_id,
         repo_type=repo_type,
         path_or_fileobj=str(artifact_dir / "README.md"),
         path_in_repo="README.md",
         commit_message="Update DiffusionGemma artifact repo card",
+        create_pr=create_pr,
     )
     api.upload_folder(
         repo_id=repo_id,
@@ -240,6 +243,7 @@ def upload_artifact_folder(api: object, *, repo_id: str, repo_type: str, artifac
         folder_path=str(artifact_dir),
         path_in_repo=remote_path,
         commit_message=f"Add DiffusionGemma smoke artifacts {artifact_dir.name}",
+        create_pr=create_pr,
     )
     return remote_path
 
