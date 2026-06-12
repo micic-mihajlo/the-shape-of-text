@@ -241,6 +241,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def validate_model_family(args: argparse.Namespace) -> None:
+    model_ids = [args.model_id, args.target_model_id]
+    if any(model_id and "diffusiongemma" in model_id.lower() for model_id in model_ids):
+        raise ValueError(
+            "DiffusionGemma is a discrete diffusion model, not a causal LM. "
+            "Use scripts/run_colab_diffusiongemma_smoke.py for remote evaluation "
+            "and a diffusion-aware trainer for fine-tuning."
+        )
+
+
 def load_tokenized_dataset(tokenizer: AutoTokenizer, args: argparse.Namespace):
     if args.dataset_format == "instruction-jsonl":
         return load_instruction_dataset(tokenizer, args)
@@ -598,6 +608,7 @@ def build_training_arguments(
 
 def main() -> None:
     args = parse_args()
+    validate_model_family(args)
     tokenizer = AutoTokenizer.from_pretrained(args.model_id, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

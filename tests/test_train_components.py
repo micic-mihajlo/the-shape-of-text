@@ -16,6 +16,7 @@ from shape_of_text.train import (
     tokenize_chat_instruction,
     trainer_gradient_checkpointing_enabled,
     trainer_optimizer_name,
+    validate_model_family,
 )
 
 
@@ -118,6 +119,16 @@ def test_alignment_weight_warmup_schedule():
 
     assert trainer.alignment_loss.mmd_weight == 0.1
     assert trainer.alignment_loss.jmq_weight == 0.4
+
+
+def test_train_entrypoint_rejects_diffusiongemma_for_causal_loss():
+    args = SimpleNamespace(
+        model_id="unsloth/diffusiongemma-26B-A4B-it",
+        target_model_id=None,
+    )
+
+    with pytest.raises(ValueError, match="DiffusionGemma is a discrete diffusion model"):
+        validate_model_family(args)
 
 
 def test_tokenize_chat_instruction_masks_prompt_prefix():

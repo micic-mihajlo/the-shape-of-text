@@ -1,7 +1,8 @@
 # The Shape of Text
 
-Distribution style-alignment scaffolding for fine-tuning a Gemma 4 12B-class
-text-logit model with PyTorch, QLoRA, bf16, and FSDP.
+Distribution style-alignment scaffolding for fine-tuning Gemma-class text
+models with PyTorch, QLoRA, bf16, and FSDP, plus a remote-only DiffusionGemma
+smoke/evaluation path.
 
 The project is intentionally general-purpose: it optimizes measurable alignment
 to human reference text distributions while keeping the model decoupled from any
@@ -21,7 +22,14 @@ company brand, private corpus, or protected identity.
   QLoRA fine-tuning. The default loader is `AutoModelForImageTextToText`, which
   matches the verified Gemma 4 Hub metadata; pass
   `--model-class causal-lm` for text-only causal-LM checkpoints.
+- `scripts/run_colab_diffusiongemma_smoke.py`: remote Colab/HF smoke path for
+  Unsloth DiffusionGemma GGUF inference plus the founder no-slop quality gate.
 - FSDP/QLoRA launcher configs under `configs/`.
+
+DiffusionGemma is intentionally not routed through `shape_of_text.train`.
+It is a discrete diffusion text model, so shifted causal-LM labels are the wrong
+training objective. See `docs/diffusiongemma_runbook.md` for the remote-only
+runtime and fine-tuning plan.
 
 ## Loss Objective
 
@@ -136,6 +144,36 @@ The memory-critical switches are already set for the intended QLoRA path:
 For CUDA OOM, reduce in this order: `--max-length`,
 `--mmd-vocab-sample-size`, `--jmq-vocab-sample-size`, LoRA rank, then
 per-device batch size.
+
+## DiffusionGemma Remote Path
+
+Use this when targeting Unsloth DiffusionGemma instead of Gemma 4 12B. Do not
+run it on the laptop; run it in Colab Pro or Hugging Face Jobs.
+
+```bash
+GIT_REF=mihajlo/social-style-alignment-framework \
+DIFFUSIONGEMMA_GGUF_QUANT=Q4_K_M \
+python scripts/run_colab_diffusiongemma_smoke.py
+```
+
+That runner builds `llama.cpp` with CUDA, serves
+`unsloth/diffusiongemma-26B-A4B-it-GGUF`, generates the founder rewrite eval
+set, and fails unless `scripts/check_founder_rewrite_quality.py` accepts every
+completion.
+
+To create a Hugging Face Jobs payload for the same remote smoke test:
+
+```bash
+python scripts/build_diffusiongemma_hf_job_payload.py \
+  --git-ref YOUR_COMMITTED_SHA \
+  --detach \
+  > outputs/hf-diffusiongemma-smoke-job.json
+```
+
+If the base DiffusionGemma GGUF clears the founder gate, use it as the hackathon
+runtime and avoid spending training credits. If it fails, fine-tuning must use a
+diffusion-aware trainer such as Unsloth's DiffusionGemma path or NeMo AutoModel,
+not the causal-LM trainer in this repo.
 
 ## Evaluation
 

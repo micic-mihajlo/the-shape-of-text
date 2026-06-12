@@ -16,7 +16,7 @@ dependencies = [
   "safetensors>=0.4",
   "torch>=2.4",
   "tqdm>=4.66",
-  "transformers>=5.10.0",
+  "transformers>=5.11.0",
   "bitsandbytes>=0.43; platform_system != 'Darwin'",
 ]
 
