@@ -1,6 +1,8 @@
 import argparse
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 from scripts.build_diffusiongemma_hf_job_payload import build_payload
 from scripts.generate_diffusiongemma_llamacpp_posts import chat_payload, completion_from_response
@@ -71,3 +73,18 @@ def test_llamacpp_build_targets_a100_cuda_arch_by_default(monkeypatch, tmp_path)
     cmake_configure = commands[0]
     assert "-DCMAKE_CUDA_ARCHITECTURES=80" in cmake_configure
     assert "-DGGML_CUDA_ARCHITECTURES=native" not in cmake_configure
+
+
+def test_diffusiongemma_generator_file_entrypoint_imports_from_any_cwd(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "scripts/generate_diffusiongemma_llamacpp_posts.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Generate founder/social eval posts" in result.stdout
