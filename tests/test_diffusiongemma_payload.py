@@ -160,6 +160,63 @@ def test_diffusiongemma_cli_completion_extracts_paragraph_labels_from_thought_ch
     )
 
 
+def test_diffusiongemma_cli_completion_strips_post_answer_self_check():
+    raw = """I think it is wrong.
+
+The engineers I've seen struggle with AI aren't struggling because of AI.
+
+They are struggling because they don't know what problem they're solving yet.
+
+"Rivet" - Yes.
+"2,300" - Yes.
+"AI-generated code" - Yes.
+Word count check: 54 words.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "I think it is wrong.\n\n"
+        "The engineers I've seen struggle with AI aren't struggling because of AI.\n\n"
+        "They are struggling because they don't know what problem they're solving yet."
+    )
+
+
+def test_diffusiongemma_cli_completion_strips_reviewing_draft_tail():
+    raw = """We moved one button and fixed the empty state.
+
+The change was tiny.
+
+But users stopped asking where to go next.
+
+Reviewing Draft 1 against prohibitions:
+- small product update: absent
+- nothing dramatic: absent
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "We moved one button and fixed the empty state.\n\n"
+        "The change was tiny.\n\n"
+        "But users stopped asking where to go next."
+    )
+
+
+def test_diffusiongemma_cli_completion_strips_generic_tail_slogans():
+    raw = """Our support macro for refund policy was technically right but failed.
+
+22 tickets needed a second reply because the tone felt robotic and defensive.
+
+We rewrote the script in plain language.
+
+Now the friction is gone.
+Better communication leads to faster resolutions.
+"""
+
+    assert clean_completion(raw, "prompt") == (
+        "Our support macro for refund policy was technically right but failed.\n\n"
+        "22 tickets needed a second reply because the tone felt robotic and defensive.\n\n"
+        "We rewrote the script in plain language."
+    )
+
+
 def test_colab_diffusiongemma_smoke_uses_larger_generation_budget(monkeypatch, tmp_path):
     commands = []
     repo_dir = tmp_path / "repo"

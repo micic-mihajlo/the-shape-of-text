@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any
@@ -19,7 +20,8 @@ from scripts.generate_social_posts import generation_record, prompt_text
 
 SYSTEM_PROMPT = (
     "You rewrite rough founder notes into direct, specific social posts. "
-    "Return only the final post. Do not list constraints, draft labels, or analysis."
+    "Return only the final post. Do not list constraints, draft labels, checks, "
+    "or analysis. Do not end with a generic lesson, slogan, or recap line."
 )
 
 GEMMA_FINAL_PREFIX = "<|turn>model\n<|channel>thought\n<channel|>"
@@ -38,6 +40,29 @@ STOP_THOUGHT_MARKERS = (
     "total time:",
     "throughput:",
 )
+
+SELF_CHECK_STARTS = (
+    "reviewing draft",
+    "word count check",
+    "forbidden phrase",
+    "forbidden terms",
+    "prohibited phrase",
+    "prohibited terms",
+    "required term",
+    "required strings",
+    "constraints",
+    "refining word count",
+    "count:",
+    "total:",
+    "draft 2",
+)
+
+SELF_CHECK_ANCHOR_RE = re.compile(r'^"[^"\n]{1,90}"\s*-\s*(?:yes|no)\.?$', re.IGNORECASE)
+
+GENERIC_TAIL_LINES = {
+    "now the friction is gone.",
+    "better communication leads to faster resolutions.",
+}
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -89,6 +114,45 @@ def line_after_label(line: str) -> str:
 def is_thought_stop_line(line: str) -> bool:
     lowered = strip_bullet_prefix(line).lower()
     return any(lowered.startswith(marker) for marker in STOP_THOUGHT_MARKERS)
+
+
+def is_self_check_start(line: str) -> bool:
+    cleaned = strip_markdown_emphasis(strip_bullet_prefix(line)).strip()
+    lowered = cleaned.lower()
+    return any(lowered.startswith(marker) for marker in SELF_CHECK_STARTS) or bool(
+        SELF_CHECK_ANCHOR_RE.match(cleaned)
+    )
+
+
+def strip_post_answer_analysis(text: str) -> str:
+    lines = text.splitlines()
+    kept: list[str] = []
+    for line in lines:
+        if is_self_check_start(line):
+            break
+        kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    return "\n".join(kept).strip()
+
+
+def strip_generic_tail_lines(text: str) -> str:
+    lines = text.splitlines()
+    while lines:
+        tail = lines[-1].strip().lower()
+        if not tail:
+            lines.pop()
+            continue
+        if tail not in GENERIC_TAIL_LINES:
+            break
+        lines.pop()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def normalize_completion_text(text: str) -> str:
+    return strip_generic_tail_lines(strip_post_answer_analysis(text)).strip()
 
 
 def extract_draft_from_thought(text: str) -> str:
@@ -154,8 +218,8 @@ def clean_completion(raw: str, prompt: str) -> str:
     if text.startswith(THOUGHT_PREFIX):
         draft = extract_draft_from_thought(text)
         if draft:
-            return draft
-    return text.strip()
+            return normalize_completion_text(draft)
+    return normalize_completion_text(text)
 
 
 def run_cli(prompt: str, args: argparse.Namespace) -> str:
