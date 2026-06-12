@@ -71,6 +71,7 @@ def hf_cli_command(args: argparse.Namespace) -> str:
         "--secrets",
         "HF_TOKEN",
         args.image,
+        "--",
         *command,
     ]
     return " ".join(shlex.quote(part) for part in parts if part)

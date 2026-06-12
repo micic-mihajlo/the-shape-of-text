@@ -120,4 +120,4 @@ def test_diffusiongemma_training_cli_command_uses_secret_flag():
 
     assert command.startswith("hf jobs run --detach --flavor a100-large")
     assert "--secrets HF_TOKEN" in command
-    assert "nvidia/cuda:12.8.0-devel-ubuntu22.04" in command
+    assert "nvidia/cuda:12.8.0-devel-ubuntu22.04 -- /bin/bash -lc" in command
