@@ -1,5 +1,6 @@
 import argparse
 
+from scripts.build_diffusiongemma_inference_hf_job_payload import build_payload as build_inference_payload
 from scripts.build_diffusiongemma_training_hf_job_payload import build_payload, hf_cli_command
 from scripts.run_hf_diffusiongemma_training import (
     adapter_card,
@@ -216,3 +217,39 @@ def test_diffusiongemma_training_cli_command_uses_secret_flag():
     assert command.startswith("hf jobs run --detach --flavor a100-large")
     assert "--secrets HF_TOKEN" in command
     assert "nvidia/cuda:12.8.0-devel-ubuntu22.04 -- /bin/bash -lc" in command
+
+
+def test_diffusiongemma_inference_payload_loads_existing_adapter_without_training():
+    args = argparse.Namespace(
+        repo_url="https://github.com/micic-mihajlo/the-shape-of-text.git",
+        git_ref="abc123",
+        image="nvidia/cuda:12.8.0-devel-ubuntu22.04",
+        flavor="a100-large",
+        timeout="90m",
+        detach=True,
+        volume=[],
+        adapter_id="micic-mihajlo/diffusiongemma-social-writer-lora",
+        eval_limit=3,
+        max_denoising_steps=32,
+        max_new_tokens=256,
+        min_free_gb=50.0,
+        artifact_repo="micic-mihajlo/diffusiongemma-social-writer-lora",
+        artifact_repo_type="model",
+        artifact_path_prefix="inference-runs",
+        run_id="smoke-1",
+        prompt="Rewrite this post.",
+    )
+
+    payload = build_inference_payload(args)
+    command = "\n".join(payload["args"]["command"])
+
+    assert payload["operation"] == "run"
+    assert payload["args"]["flavor"] == "a100-large"
+    assert payload["args"]["secrets"] == {"HF_TOKEN": "$HF_TOKEN"}
+    assert "git checkout abc123" in command
+    assert "scripts/run_hf_diffusiongemma_inference.py" in command
+    assert "scripts/run_hf_diffusiongemma_training.py" not in command
+    assert "--adapter-id micic-mihajlo/diffusiongemma-social-writer-lora" in command
+    assert "--artifact-path-prefix inference-runs" in command
+    assert "--run-id smoke-1" in command
+    assert "--prompt 'Rewrite this post.'" in command
